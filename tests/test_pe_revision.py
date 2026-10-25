@@ -201,7 +201,7 @@ class ContextAndSorting(unittest.TestCase):
         self.assertIn('data-s-encaje="71"', page)
         self.assertIn('data-s-frescura="3"', page)
         self.assertIn('data-s-reputacion="4.2"', page)
-        for key in ("accion", "encaje", "puesto", "frescura", "reputacion", "cierre"):
+        for key in ("accion", "encaje", "puesto", "frescura", "reputacion", "cierre", "modalidad"):
             self.assertIn(f'<option value="{key}:', page)
         self.assertIn("chip place", page)
 

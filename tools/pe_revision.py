@@ -214,7 +214,7 @@ def contacts_html(r: dict) -> str:
         links.append(link(people_search(f"{contact.strip()} {name}"), contact.strip()))
     google = f'site:linkedin.com/in "{name}" (jefe OR gerente OR head) {area}'.strip()
     links.append(link("https://www.google.com/search?q=" + quote_plus(google), "Google"))
-    return '<div class="how"><b>Contactos:</b> ' + " · ".join(links) + "</div>"
+    return '<div class="contacts"><div class="lb">Contactos en LinkedIn</div><div class="cchips">' + "".join(links) + "</div></div>"
 
 
 # Words that say how senior someone is, not what they work on: left out when matching an area.
@@ -895,6 +895,64 @@ details.sec .track{margin-top:12px}
 .st{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
 .st.ok{background:var(--go-bg);color:var(--go-ink)}.st.err{background:var(--stop-bg);color:var(--stop-ink)}.st.man{background:var(--muted-bg);color:var(--ink-2)}
 .fine{font-size:12px;color:var(--dim);max-width:90ch;margin:0}
+/* open posting */
+.detail{display:flex!important;flex-direction:column;gap:18px;padding:18px 24px 24px 96px}
+.d-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}.d-actions .grow{flex:1}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600;text-decoration:none}
+.btn-primary svg{width:14px;height:14px}.btn-primary:hover{filter:brightness(1.1);color:var(--accent-ink)}
+.d-actions .btn-cv{background:var(--surface);color:var(--ink);border-color:var(--line-strong)}.d-actions .btn-cv:hover{border-color:var(--accent);color:var(--ink);filter:none}
+.seen-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font-weight:600;cursor:pointer;user-select:none}
+.seen-btn:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep)}
+.seen-btn input{margin:0;width:16px;height:16px;accent-color:var(--accent)}
+.d-src{font-size:12px;color:var(--dim)}
+.facts{margin:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.facts>div{padding:12px 16px;background:var(--surface);border-right:1px solid var(--line);min-width:0}.facts>div:last-child{border-right:0}
+.facts dt{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.facts dd{margin:0}.facts .v{margin-top:4px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}.facts .n{margin-top:2px;font-size:12px;color:var(--dim)}
+.d-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr);gap:16px;align-items:start}
+.d-card{border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.d-card h4{margin:0;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:0;text-transform:none}
+.d-card .ic{flex:none;width:22px;height:22px;border-radius:11px;display:grid;place-items:center}.d-card .ic svg{width:12px;height:12px}
+.d-card.why h4{color:var(--go-ink)}.d-card.why .ic{background:var(--go-bg);color:var(--go)}
+.d-card.gaps h4{color:var(--warn-ink)}.d-card.gaps .ic{background:var(--warn-bg);color:var(--warn)}
+.d-card ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.d-card.why li,.d-card.gaps li{position:relative;padding-left:16px}
+.d-card.why li::before,.d-card.gaps li::before{content:"";position:absolute;left:0;top:.6em;width:6px;height:6px;border-radius:3px;background:var(--go)}
+.d-card.gaps li::before{background:var(--warn)}
+.d-card.apply{background:var(--surface-2)}.d-card.apply h4{color:var(--ink)}
+.contacts .lb{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.cchips{display:flex;flex-wrap:wrap;gap:8px}
+.cchips a{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font-size:13px;font-weight:600;text-decoration:none}
+.cchips a:hover{border-color:var(--accent);color:var(--ink)}
+.d-ev{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 0 0;margin:0}
+.d-ev>summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--dim)}
+.d-ev .d-more{border-top:0;padding-top:12px}
+/* sortable headers */
+.cols{padding:0 18px}.colsort{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--dim);min-height:28px}
+.colsort:hover{color:var(--ink)}.colsort:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.colsort .arr::after{content:"↕";font-size:11px;opacity:.5}
+.colsort[aria-sort="ascending"]{color:var(--ink)}.colsort[aria-sort="ascending"] .arr::after{content:"↑";opacity:1}
+.colsort[aria-sort="descending"]{color:var(--ink)}.colsort[aria-sort="descending"] .arr::after{content:"↓";opacity:1}
+/* portal coverage */
+.cov-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr));gap:12px;margin-top:14px}
+.tile{border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.tile b{font-size:26px;line-height:1.15;font-variant-numeric:tabular-nums}.tile small{font-size:14px;font-weight:600;color:var(--dim)}.tile span{font-size:12px;color:var(--dim)}
+.cov-h{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:20px 0 10px}
+.cov-chart{display:flex;flex-direction:column;gap:12px}
+.cbar{display:grid;grid-template-columns:170px minmax(0,1fr) 64px 170px;gap:12px;align-items:center;font-size:13px}
+.cname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cname a{color:var(--ink);text-decoration:none}.cname a:hover{color:var(--accent)}
+.ctrack{display:block;height:10px;border-radius:0 4px 4px 0;background:transparent;border-left:1px solid var(--line-strong)}
+.ctrack i{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--accent)}
+.cval{font-weight:700;text-align:right}
+.cerr{grid-column:2/-1;margin:0;padding-left:16px;font-size:12px;color:var(--stop-ink)}
+.cov-manual{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px}
+.mcard{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.mcard>span{color:var(--dim);font-size:12px}.mcard b a{color:var(--ink)}
+.mlinks{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.mlinks a{display:inline-flex;align-items:center;min-height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--line-strong);font-size:12px;font-weight:600;text-decoration:none;color:var(--accent)}
+.cov-table{background:transparent;border:0;padding:0;margin:16px 0 8px}.cov-table>summary{font-size:13px;font-weight:600;color:var(--accent)}
+@media (max-width:900px){.facts{grid-template-columns:repeat(2,minmax(0,1fr))}.facts>div{border-bottom:1px solid var(--line)}
+.d-grid{grid-template-columns:minmax(0,1fr)}.detail{padding-left:18px!important}.cbar{grid-template-columns:110px minmax(0,1fr) 52px}.cbar .st{grid-column:2/-1;justify-self:start}}
 footer{color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:16px;padding-bottom:28px}
 @media (max-width:900px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.step{border-bottom:1px solid var(--line)}
 .step:nth-child(2n){border-right:0}.detail,.d-more{grid-template-columns:minmax(0,1fr)}.detail{padding-left:18px}.side{max-width:none}}
@@ -1009,8 +1067,10 @@ JS = """
     tot.textContent=shown;empty.hidden=shown>0;
     document.querySelectorAll('[data-quick-action]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.quickAction===fa.value));});
   }
+  var heads=Array.prototype.slice.call(document.querySelectorAll('button.colsort'));
   function sort(){
     var p=so.value.split(':'),key=p[0],sign=p[1]==='asc'?1:-1;
+    heads.forEach(function(h){h.setAttribute('aria-sort',h.dataset.sort===key?(sign>0?'ascending':'descending'):'none');});
     cards.sort(function(a,b){
       var x=a.getAttribute('data-s-'+key),y=b.getAttribute('data-s-'+key),nx=parseFloat(x),ny=parseFloat(y);
       var c=(!isNaN(nx)&&!isNaN(ny))?nx-ny:String(x).localeCompare(String(y),'es');
@@ -1027,6 +1087,14 @@ JS = """
     if(sel){sel.value=b.dataset.value;apply();document.getElementById('decidir').scrollIntoView({behavior:'smooth',block:'start'});}
   });
   so.addEventListener('change',sort);
+  heads.forEach(function(h){
+    h.addEventListener('click',function(){
+      var cur=h.getAttribute('aria-sort'),dir=cur==='none'?h.dataset.first:(cur==='ascending'?'desc':'asc');
+      so.value=h.dataset.sort+':'+dir;
+      if(so.value!==h.dataset.sort+':'+dir){var o=document.createElement('option');o.value=h.dataset.sort+':'+dir;o.textContent=h.textContent+(dir==='asc'?' ↑':' ↓');so.appendChild(o);so.value=o.value;}
+      sort();
+    });
+  });
 
   // "Ver ficha" from this week's cards: clear what hides the posting, open it and bring it into view.
   document.querySelectorAll('[data-goto]').forEach(function(b){
@@ -1046,37 +1114,62 @@ JS = """
 
 def coverage_html(cov: dict | None) -> str:
     """Which portals the search covers and how the last run went (tools/pe_pipeline.py writes
-    reports/busqueda/cobertura.json): CLI results and errors, or the links to search by hand."""
+    reports/busqueda/cobertura.json): three headline numbers, one bar per searched portal (results,
+    with its state as an icon and words), the links for the portals searched by hand, and the
+    same data as a table."""
     if not isinstance(cov, dict) or not isinstance(cov.get("portales"), list):
         return ('<details class="cov"><summary>Portales y cobertura</summary><p class="fine">Sin registro todavía: '
                 'corre <code>python tools/pe_pipeline.py portales</code> (o <code>buscar</code>).</p></details>')
     portals = [p for p in cov["portales"] if isinstance(p, dict)]
+    clis = [p for p in portals if p.get("metodo") == "cli"]
+    manual = [p for p in portals if p.get("metodo") != "cli"]
+    clean = sum(1 for p in clis if p.get("consultas") and not p.get("fallidas"))
+    total = sum(int(p.get("resultados") or 0) for p in clis)
+    queries = sum(int(p.get("consultas") or 0) for p in clis)
+    failed = sum(int(p.get("fallidas") or 0) for p in clis)
+    top = max((int(p.get("resultados") or 0) for p in clis), default=0) or 1
+    tiles = (f'<div class="tile"><b>{fmt_es(total)}</b><span>resultados en la última búsqueda</span></div>'
+             f'<div class="tile"><b>{queries - failed} <small>de {queries}</small></b><span>consultas sin error</span></div>'
+             f'<div class="tile"><b>{clean} <small>de {len(clis)}</small></b><span>portales automáticos sin errores</span></div>')
+    bars = []
+    for p in sorted(clis, key=lambda x: -int(x.get("resultados") or 0)):
+        n = int(p.get("resultados") or 0)
+        ran, bad = int(p.get("consultas") or 0), int(p.get("fallidas") or 0)
+        if not ran:
+            state = '<span class="st man">sin correr</span>'
+        elif bad:
+            state = f'<span class="st err">⚠ {bad} de {ran} fallaron</span>'
+        else:
+            state = f'<span class="st ok">✓ {ran} de {ran} consultas</span>'
+        tip = f'{p.get("nombre")}: {fmt_es(n)} resultados · {ran} consultas' + (
+            f' · {p["paginas_extra"]} páginas extra' if p.get("paginas_extra") else "") + f' · {p.get("fecha") or "—"}'
+        errs = "".join(f'<li>{esc(e)}</li>' for e in (p.get("errores") or [])[:3])
+        bars.append(f'<div class="cbar" role="listitem" title="{esc(tip)}"><span class="cname">{link(p.get("home"), p.get("nombre"))}</span>'
+                    f'<span class="ctrack"><i style="width:{max(2, round(100 * n / top))}%"></i></span>'
+                    f'<span class="cval num">{fmt_es(n)}</span>{state}'
+                    + (f'<ul class="cerr">{errs}</ul>' if errs else "") + '</div>')
+    hand = "".join(
+        f'<div class="mcard"><b>{link(p.get("home"), p.get("nombre"))}</b><span>{esc(p.get("nota") or "")}</span>'
+        f'<div class="mlinks">{"".join(link(x.get("url"), x.get("q") or "abrir") for x in p.get("enlaces") or [] if isinstance(x, dict))}</div></div>'
+        for p in manual)
     rows = []
     for p in portals:
         if p.get("metodo") == "cli":
-            if not p.get("consultas"):
-                status = '<span class="st man">sin correr</span>'
-            elif p.get("fallidas"):
-                status = f'<span class="st err">{esc(p["fallidas"])} de {esc(p["consultas"])} fallaron</span>'
-            else:
-                status = f'<span class="st ok">{esc(p["consultas"])} consultas ok</span>'
-            last = f'{status} <span class="dim">{esc(p.get("resultados", 0))} resultados · {esc(p.get("fecha") or "—")}</span>'
+            last = f'{esc(p.get("ok", 0))} de {esc(p.get("consultas") or 0)} ok · {esc(p.get("resultados", 0))} resultados · {esc(p.get("fecha") or "—")}'
         else:
-            last = '<span class="st man">a mano</span>'
-        errors = "<br>".join(esc(e) for e in (p.get("errores") or [])[:3]) or '<span class="dim">—</span>'
-        links = " ".join(link(x.get("url"), x.get("q") or "abrir") for x in p.get("enlaces") or [] if isinstance(x, dict))
-        rows.append(f'<tr><td><b>{link(p.get("home"), p.get("nombre"))}</b><br>'
-                    f'<span class="dim">{esc(p.get("nota") or "")}</span></td>'
-                    f'<td>{"CLI" if p.get("metodo") == "cli" else "Enlace"}</td><td>{last}</td><td>{errors}</td>'
-                    f'<td class="links">{links or "<span class=dim>—</span>"}</td></tr>')
-    clis = [p for p in portals if p.get("metodo") == "cli"]
-    clean = sum(1 for p in clis if p.get("consultas") and not p.get("fallidas"))
-    return (f'<details class="cov"><summary>Portales y cobertura · {len(rows)} portales, {clean} de {len(clis)} CLI sin errores '
+            last = "a mano"
+        errors = "<br>".join(esc(e) for e in (p.get("errores") or [])[:3]) or "—"
+        rows.append(f'<tr><td>{link(p.get("home"), p.get("nombre"))}</td><td>{"CLI" if p.get("metodo") == "cli" else "Enlace"}</td>'
+                    f'<td>{last}</td><td>{errors}</td></tr>')
+    return (f'<details class="cov"><summary>Portales y cobertura · {len(portals)} portales, {clean} de {len(clis)} CLI sin errores '
             f'· registro del {esc(cov.get("fecha") or "—")}</summary>'
-            '<div class="wrap"><table><thead><tr><th>Portal</th><th>Cómo</th><th>Última búsqueda</th>'
-            f'<th>Errores</th><th>Buscar a mano</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
-            '<p class="fine">Los portales con CLI se buscan solos con <code>python tools/pe_pipeline.py buscar</code>; los demás se '
-            'abren con estos enlaces (las ofertas que encuentres se pegan a Claude para evaluarlas).</p></details>')
+            f'<div class="cov-tiles">{tiles}</div>'
+            f'<h4 class="cov-h">Resultados por portal con búsqueda automática</h4><div class="cov-chart" role="list">{"".join(bars)}</div>'
+            + (f'<h4 class="cov-h">Buscar a mano</h4><div class="cov-manual">{hand}</div>' if hand else "")
+            + '<details class="cov-table"><summary>Ver como tabla</summary><div class="wrap"><table><thead><tr><th>Portal</th><th>Cómo</th>'
+            f'<th>Última búsqueda</th><th>Errores</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></details>'
+            '<p class="fine">Los portales con búsqueda automática corren con <code>python tools/pe_pipeline.py buscar</code>; '
+            'los demás se abren con estos enlaces y las ofertas que encuentres se pegan a Claude para evaluarlas.</p></details>')
 
 
 def nuevas_html(report: dict | None, seen: dict) -> str:
@@ -1162,7 +1255,7 @@ def _sort_keys(r: dict) -> dict:
         "accion": ACTION_ORDER[r["action"]], "encaje": r.get("rank_score") or 0,
         "puesto": f'{r.get("title") or ""} {r.get("company") or ""}'.lower(),
         "frescura": age if isinstance(age, int) else 99999, "reputacion": rating if rating is not None else -1,
-        "cierre": closes["sort"],
+        "cierre": closes["sort"], "modalidad": r.get("modality") or "zz no declarado",
     }
 
 
@@ -1200,6 +1293,7 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
                if r["action"] == "postulada" else "")
     place = context_html(r.get("context"))
     posting = link(r.get("url"), "Ver aviso original ↗") if re.match(r"^https?://", str(r.get("url") or "")) else ""
+    detail = detail_html(r, fresh, level, closes, applied, how, place)
     return (
         f'<article class="card {css}" data-key="{esc(r["key"])}" data-tone="{css}" '
         f'data-label="{esc((r.get("title") or "") + " · " + (r.get("company") or ""))}" '
@@ -1216,17 +1310,71 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
         f'<span class="c-close">{close_cell}</span>'
         f'<span class="c-fresh" title="Frescura de la vacante"><i class="dot {FRESH_CSS.get(level, "")}"></i>{esc(fresh_txt)}</span>'
         f'<span class="c-act"><span class="badge {css}">{esc(label)}</span></span></span>{CHEVRON}</summary>'
-        f'<div class="detail">'
-        f'<div class="d-why"><h4>Por qué calza</h4>{bullets(r.get("strengths"))}</div>'
-        f'<div class="d-gaps"><h4>Brechas</h4>{bullets(r.get("gaps"))}</div>'
-        f'<div class="apply"><h4>{"Postulación" if applied else "Cómo postular"}</h4>{applied}{how}{cv_html(r)}'
-        f'{contacts_html(r)}{people_html(r)}<div class="meta">{meta_html(r)}</div>{also_html(r)}'
-        + (f'<div class="d-links">{posting}</div>' if posting else "")
-        + f'<label class="done-l"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> Revisada</label></div>'
-        f'<div class="d-more"><div><h4>Frescura de la vacante</h4>{fresh_html(fresh)}</div>'
-        f'<div><h4>Lugar y rubro</h4>{place or '<span class="dim">Sin dato</span>'}</div>'
-        f'<div><h4>Reputación</h4><div class="rating">{rating_html(r.get("ratings"))}</div></div></div>'
-        "</div></details></article>"
+        f'<div class="detail">{detail}'        "</div></details></article>"
+    )
+
+
+ICON_CHECK = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">'
+              '<path d="M3 8.5l3 3 7-7"/></svg>')
+ICON_ALERT = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">'
+              '<path d="M8 3v6M8 12.5v.5"/></svg>')
+ICON_OUT = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+            '<path d="M6 3h7v7M13 3L5 11M3 6v7h7"/></svg>')
+
+
+def _ddmm(value) -> str:
+    try:
+        return date.fromisoformat(str(value)[:10]).strftime("%d/%m")
+    except ValueError:
+        return ""
+
+
+def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: str, how: str, place: str) -> str:
+    """The open posting, as drawn in the canvas: the actions first, the key facts in one strip,
+    then why it fits, the gaps and how to apply side by side, and the sources folded at the end."""
+    ctx = r.get("context") or {}
+    lg, rb = ctx.get("lugar") or {}, ctx.get("rubro") or {}
+    score = r.get("rank_score")
+    age = (fresh or {}).get("age_days")
+    floor = "≥" if (fresh or {}).get("age_is_minimum") else ""
+    posted = _ddmm((fresh or {}).get("original_date") or r.get("posted_date"))
+    risk = (fresh or {}).get("risk")
+    places = ", ".join(lg.get("districts") or []) or ("Remoto" if lg.get("remote") else "Sin dato")
+    modality = (r.get("modality") or "no declarado").capitalize()
+    facts = [
+        ("Encaje", f"{score} de 100" if score is not None else "—", r.get("rank_verdict") or ""),
+        ("Frescura", f"{level.capitalize()}" + (f" · {floor}{age} días" if isinstance(age, int) else ""),
+         (f"riesgo de ghost job {risk}" if risk in ("medio", "alto") else f"publicada el {posted}" if posted else "")),
+        ("Cierre", closes["label"] if closes["bucket"] != "sin" else "Sin fecha",
+         "fecha que escribe la oferta" if closes["bucket"] != "sin" else "el aviso no la indica"),
+        ("Lugar", places, f"modalidad: {modality.lower()}"),
+        ("Rubro", rb.get("label") or "Sin identificar", " · ".join(employer_kinds(rb))),
+    ]
+    dl = "".join(f'<div><dt>{esc(k)}</dt><dd class="v">{esc(v)}</dd>' + (f'<dd class="n">{esc(n)}</dd>' if n else "") + "</div>"
+                 for k, v, n in facts)
+    url = r.get("url")
+    actions = (f'<a class="btn-primary" href="{esc(url)}" target="_blank" rel="noopener noreferrer">Ver aviso original {ICON_OUT}</a>'
+               if re.match(r"^https?://", str(url or "")) else "")
+    actions += cv_html(r).replace('<div class="cvrow">', "").replace("</div>", "")
+    actions += (f'<label class="seen-btn"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> '
+                f'<span>Revisada</span></label>')
+    portal = (r.get("portal") or "").replace("-search", "").replace("-", " ")
+    src = " · ".join(x for x in (f"publicada en {portal}" if portal else "", f"vista el {_ddmm(r.get('first_seen'))}"
+                                 if _ddmm(r.get("first_seen")) else "") if x)
+    people = people_html(r)
+    return (
+        f'<div class="d-actions">{actions}<span class="grow"></span><span class="d-src">{esc(src)}</span></div>'
+        f'<dl class="facts">{dl}</dl>'
+        '<div class="d-grid">'
+        f'<section class="d-card why"><h4><span class="ic">{ICON_CHECK}</span>Por qué calza</h4>{bullets(r.get("strengths"))}</section>'
+        f'<section class="d-card gaps"><h4><span class="ic">{ICON_ALERT}</span>Brechas</h4>{bullets(r.get("gaps"))}</section>'
+        f'<section class="d-card apply"><h4>{"Postulación" if applied else "Cómo postular"}</h4>{applied}{how}'
+        f'{contacts_html(r)}{people}<div class="meta">{meta_html(r)}</div>{also_html(r)}</section>'
+        '</div>'
+        '<details class="d-ev"><summary>Fuentes y evidencia</summary><div class="d-more">'
+        f'<div><h4>Frescura de la vacante</h4>{fresh_html(fresh)}</div>'
+        f'<div><h4>Lugar y rubro</h4>{place or "<span class=dim>Sin dato</span>"}</div>'
+        f'<div><h4>Reputación</h4><div class="rating">{rating_html(r.get("ratings"))}</div></div></div></details>'
     )
 
 
@@ -1304,8 +1452,14 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
         f'<option value="{v}">{esc(lbl)}</option>'
         for v, lbl in (("accion:asc", "Acción más urgente"), ("encaje:desc", "Mayor encaje"),
                        ("cierre:asc", "Cierra antes"), ("frescura:asc", "Más reciente"),
-                       ("reputacion:desc", "Mejor reputación"), ("puesto:asc", "Puesto, A a Z"))
+                       ("reputacion:desc", "Mejor reputación"), ("puesto:asc", "Puesto, A a Z"),
+                       ("modalidad:asc", "Modalidad"))
     )
+    col_buttons = "".join(
+        f'<button type="button" class="colsort" data-sort="{k}" data-first="{first}" aria-sort="{"ascending" if k == "accion" else "none"}" '
+        f'title="Ordenar por {esc(lbl.lower())}">{esc(lbl)}<span class="arr" aria-hidden="true"></span></button>'
+        for lbl, k, first in (("Encaje", "encaje", "desc"), ("Oferta", "puesto", "asc"), ("Modalidad", "modalidad", "asc"),
+                              ("Cierre", "cierre", "asc"), ("Frescura", "frescura", "asc"), ("Acción", "accion", "asc")))
     unranked = "".join(
         f'<li>{esc(r.get("posted_date") or "?")} · {link(r.get("url"), r.get("title"))} · {esc(r.get("company"))}'
         f' <span class="dim">({esc(r.get("modality"))} · {esc(r.get("level"))})</span></li>'
@@ -1388,7 +1542,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="listcol">
 <div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
 <div class="list-tools"><label>Orden <select id="so">{sort_opts}</select></label></div></div>
-<div class="cols" aria-hidden="true"><span>Encaje</span><span>Oferta</span><span>Modalidad</span><span>Cierre</span><span>Frescura</span><span>Acción</span><span></span></div>
+<div class="cols" role="group" aria-label="Ordenar por columna">{col_buttons}<span></span></div>
 <div class="track list" id="main" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
 <div class="empty" id="empty" hidden>Ninguna oferta con estos filtros.</div>
 <p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular · revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}.</p>
