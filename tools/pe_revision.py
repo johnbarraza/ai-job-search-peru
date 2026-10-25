@@ -836,6 +836,9 @@ border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
 .pill.abroad{background:var(--accent-soft);color:var(--accent)}.pill.abroad-onsite{background:var(--warn-bg);color:var(--warn)}
 .pref{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;font-size:12.5px;padding-top:10px;border-top:1px solid var(--line)}
 .pref span{min-width:0;overflow-wrap:anywhere}
+.nuevas .filters{margin-top:10px}.nuevas table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px;min-width:760px}
+.nuevas th,.nuevas td{text-align:left;vertical-align:top;padding:7px 8px;border-bottom:1px solid var(--line)}
+.nuevas th{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}.nuevas .wrap{overflow-x:auto;max-height:70vh;overflow-y:auto}
 .cov table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px;min-width:760px}
 .cov th,.cov td{text-align:left;vertical-align:top;padding:7px 8px;border-bottom:1px solid var(--line)}
 .cov th{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
@@ -1130,6 +1133,58 @@ def coverage_html(cov: dict | None) -> str:
             'abren con estos enlaces (las ofertas que encuentres se pegan a Claude para evaluarlas).</p></details>')
 
 
+def nuevas_html(report: dict | None, seen: dict) -> str:
+    """The last search's postings not yet evaluated (tools/pe_pipeline.py buscar ->
+    reports/busqueda/nuevas.json), minus any registered since: a list to skim before /rank."""
+    if not isinstance(report, dict) or not isinstance(report.get("nuevas"), list):
+        return ""
+    known = {pe_frescura.posting_id({"id": e.get("id"), "url": e.get("url")}) for e in seen.values() if isinstance(e, dict)}
+    rows = [p for p in report["nuevas"] if isinstance(p, dict) and pe_frescura.posting_id(p) not in known]
+    if not rows:
+        return ""
+    portals = sorted({p.get("portal") or "?" for p in rows})
+    queries = sorted({p.get("query") or "" for p in rows if p.get("query")})
+    body = []
+    for p in rows:
+        text = " ".join(str(p.get(k) or "") for k in ("title", "company", "location", "query")).lower()
+        kind = " · ".join(x for x in (p.get("modality"), p.get("level")) if x and x != "no declarado")
+        body.append(
+            f'<tr data-text="{esc(text)}" data-portal="{esc(p.get("portal") or "?")}" data-query="{esc(p.get("query") or "")}">'
+            f'<td class="num">{esc(p.get("date") or "—")}</td><td><b>{link(p.get("url"), p.get("title") or "—")}</b>'
+            f'<br><span class="dim">{esc(p.get("company") or "")}</span></td>'
+            f'<td>{esc(p.get("location") or "—")}</td><td>{esc(kind or "—")}</td>'
+            f'<td>{esc((p.get("portal") or "?").replace("-", " "))}</td><td class="dim">{esc(p.get("query") or "")}</td></tr>')
+    portal_opts = "".join(f'<option value="{esc(x)}">{esc(x.replace("-", " "))}</option>' for x in portals)
+    query_opts = "".join(f'<option value="{esc(x)}">{esc(x)}</option>' for x in queries)
+    return (f'<details class="nuevas"><summary>Nuevas de la última búsqueda, sin evaluar ({len(rows)}) · '
+            f'{esc(report.get("generated") or "—")}</summary>'
+            '<p class="fine">Lo que trajo <code>python tools/pe_pipeline.py buscar</code> y aún no pasa por <code>/rank</code>: '
+            'sin encaje, frescura ni lugar verificados. Solo para darles una mirada.</p>'
+            '<div class="filters"><input id="nq" type="search" placeholder="Buscar en las nuevas" aria-label="Buscar en las nuevas">'
+            f'<select id="np" aria-label="Portal"><option value="">Todo portal</option>{portal_opts}</select>'
+            f'<select id="nc" aria-label="Consulta"><option value="">Toda consulta</option>{query_opts}</select>'
+            f'<span class="progress">Mostrando <b id="ncount">{len(rows)}</b> de {len(rows)}</span></div>'
+            '<div class="wrap"><table><thead><tr><th>Publicada</th><th>Oferta</th><th>Lugar</th><th>Modalidad y nivel</th>'
+            f'<th>Portal</th><th>Consulta</th></tr></thead><tbody id="nrows">{"".join(body)}</tbody></table></div></details>')
+
+
+NUEVAS_JS = """
+(function(){
+  var body=document.getElementById('nrows');if(!body)return;
+  var q=document.getElementById('nq'),p=document.getElementById('np'),c=document.getElementById('nc'),n=document.getElementById('ncount');
+  function apply(){
+    var t=(q.value||'').toLowerCase(),shown=0;
+    Array.prototype.forEach.call(body.rows,function(r){
+      var ok=(!t||r.dataset.text.indexOf(t)>=0)&&(!p.value||r.dataset.portal===p.value)&&(!c.value||r.dataset.query===c.value);
+      r.hidden=!ok;if(ok)shown++;
+    });
+    n.textContent=shown;
+  }
+  [q,p,c].forEach(function(el){el.addEventListener('input',apply);el.addEventListener('change',apply);});
+})();
+"""
+
+
 def render(data: dict, today: date, title: str | None, artifact: bool = False) -> str:
     """The page. `artifact` drops the document wrapper (the claude.ai Artifact publisher adds
     its own <!doctype>/<head>/<body>) and declares the safe-area side gutter it relies on.
@@ -1307,6 +1362,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
         f'Mostrar también las del extranjero que tu perfil deja fuera ({excluded})</label></div>'
     )
     coverage = coverage_html(data.get("cobertura"))
+    nuevas = nuevas_html(data.get("nuevas"), data["seen"])
     runs = [p for p in ((data.get("cobertura") or {}).get("portales") or [])
             if isinstance(p, dict) and p.get("ok") and re.match(r"\d{4}-\d{2}-\d{2}", str(p.get("fecha") or ""))]
     latest = max((str(p["fecha"])[:10] for p in runs), default=None)
@@ -1356,6 +1412,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <details><summary>Descartadas o no elegibles ({len(out_rows)})</summary>
 <div class="track list">{"".join(card_html(r, classes) for r in out_rows)}</div></details>
 <details><summary>Vistas y relevantes, sin evaluar ({len(data["unranked"])})</summary><ul class="unranked">{unranked}</ul></details>
+{nuevas}
 {coverage}
 <p class="fine">Frescura vacante: edad desde la publicación original; "≥" es un mínimo (Computrabajo reinicia la fecha al republicar);
 el vencimiento del portal no es una fecha de cierre (<code>10-peru-market.md</code>, sección 10).
@@ -1363,7 +1420,7 @@ Reputación: cada calificación con su n, área y fecha; con menos de {SMALL_N} 
 "Revisada" se guarda solo en este navegador.</p>
 </main>
 <footer>Generado por <code>tools/pe_revision.py</code> · ai-job-search-pe · {esc(today.isoformat())}</footer>
-<script>{JS}{CV_JS}</script>
+<script>{JS}{CV_JS}{NUEVAS_JS}</script>
 """
 
 
@@ -1434,6 +1491,8 @@ def main(argv=None) -> int:
     ap.add_argument("--titulo", help="name shown in the heading, e.g. the candidate's")
     ap.add_argument("--perfil", type=Path, default=Path("CLAUDE.md"),
                     help="the profile whose `Abroad:` line says if non-remote postings abroad are in play")
+    ap.add_argument("--nuevas", type=Path, default=Path("reports/busqueda/nuevas.json"),
+                    help="tools/pe_pipeline.py buscar's new postings, listed apart until /rank scores them (skipped when missing)")
     ap.add_argument("--cobertura", type=Path, default=Path("reports/busqueda/cobertura.json"),
                     help="tools/pe_pipeline.py's portal coverage (skipped when missing)")
     ap.add_argument("--artifact", action="store_true",
@@ -1470,6 +1529,10 @@ def main(argv=None) -> int:
         data["cobertura"] = json.loads(args.cobertura.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         data["cobertura"] = None
+    try:
+        data["nuevas"] = json.loads(args.nuevas.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data["nuevas"] = None
     args.out.parent.mkdir(parents=True, exist_ok=True)
     embed = not args.artifact and not args.no_embed_cvs
     manifest = cv_hrefs(data["ranked"], args.out.parent.resolve(), args.artifact, embed=embed)

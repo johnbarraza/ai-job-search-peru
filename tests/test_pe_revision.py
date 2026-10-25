@@ -466,5 +466,25 @@ class SharedUrls(unittest.TestCase):
         self.assertEqual(data["ranked"][0]["fresh"]["age_days"], 2)
 
 
+class NewFromLastSearch(unittest.TestCase):
+    def test_lists_the_last_search_apart_minus_what_was_registered_since(self):
+        seen = {"k": ranked(url=BM_SEARCH)}
+        report = {"generated": "2026-10-25", "nuevas": [
+            {"id": "1118482096", "portal": "bumeran", "title": "Ya registrada", "url": BM_SEARCH},
+            {"id": "999", "portal": "computrabajo", "title": "<b>Asistente</b> de Selección", "company": "Acme",
+             "url": "javascript:alert(1)", "query": "asistente de seleccion", "date": "2026-10-25"},
+        ]}
+        html = pr.nuevas_html(report, seen)
+        self.assertIn("sin evaluar (1)", html)
+        self.assertNotIn("Ya registrada", html)
+        self.assertIn("&lt;b&gt;Asistente&lt;/b&gt;", html)
+        self.assertNotIn("javascript:", html)
+        self.assertIn('<option value="asistente de seleccion">', html)
+
+    def test_no_report_no_section(self):
+        self.assertEqual(pr.nuevas_html(None, {}), "")
+        self.assertEqual(pr.nuevas_html({"nuevas": []}, {}), "")
+
+
 if __name__ == "__main__":
     unittest.main()
