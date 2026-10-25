@@ -81,6 +81,8 @@ Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cóm
 
 - `portal`: `linkedin`, `bumeran`, `computrabajo`, `talento-peru` o `practicas-pe` (las CLIs instaladas).
 - Prácticas.pe consulta por carrera (`q`) y región (`l`: Lima o Perú). Su listado no indica cuándo se publicó cada aviso: `--detalle` guarda esa fecha para las ofertas nuevas. El filtro `jobage` no se aplica en ese portal hasta leer las fichas.
+- `campo` para SERVIR (laboral): `perfil` (por defecto) busca la **carrera** que pide el aviso (`economia`, `psicologia`); `puesto` busca palabras del **cargo** (`supervisor`, `analista de recursos humanos`). No son intercambiables: el 25/10, "supervisor" dio 0 como perfil y 13 como puesto, y "psicologia" dio 30 como perfil y 0 como puesto.
+- `paginas` (opcional, por consulta o en la raíz del archivo): cuántas páginas leer en Computrabajo y Bumeran (20 avisos cada una) y LinkedIn (10). Por defecto 1, máximo 10; se detiene cuando una página viene vacía o repite la anterior. `paginas_linkedin` en la raíz fija aparte el valor de LinkedIn, que limita las ráfagas. Sin páginas extra, una consulta amplia se queda con lo publicado ese día.
 - `tipo` para SERVIR: `laboral`, `practicas` o `ambos`. Una consulta vacía de prácticas obtiene todas las de Lima. SERVIR identifica cada aviso por entidad, título y número de convocatoria, pues no publica URL individual.
 - `l`: lugar. Para LinkedIn, `"Lima, Peru"`; para Bumeran y Computrabajo, una región o un distrito (`"San Isidro"`).
 - `remote` (opcional): `remote` o `hybrid`, para forzar la modalidad.

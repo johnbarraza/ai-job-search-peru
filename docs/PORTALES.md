@@ -39,7 +39,8 @@ Qué portales cubre la búsqueda, cómo, y qué se sabe de cada uno. El estado d
 ### Talento Perú (SERVIR) (CLI)
 
 - `tools/pe_servir.py` consulta el formulario JSF y conserva el estado de vista en cada página. No necesita navegador ni LLM. Instala sus dependencias con `pip install -r tools/requirements-servir.txt`.
-- Ejemplos: `python tools/pe_servir.py search -q economia -l Lima --tipo laboral` y `python tools/pe_servir.py search -l Lima --tipo practicas`. `buscar --portal talento-peru` ejecuta las consultas guardadas del perfil.
+- Ejemplos: `python tools/pe_servir.py search -q economia -l Lima --tipo laboral` (carrera), `python tools/pe_servir.py search -q supervisor -l Lima --tipo laboral --campo puesto` (cargo) y `python tools/pe_servir.py search -l Lima --tipo practicas`.
+- **Perfil o puesto:** el formulario laboral tiene dos campos. `--campo perfil` (por defecto) filtra por la carrera que pide la convocatoria; `--campo puesto`, por el nombre del cargo. Una palabra de cargo buscada como perfil devuelve 0 sin error. `buscar --portal talento-peru` ejecuta las consultas guardadas del perfil.
 - Los avisos no tienen URL individual: el resultado guarda el número de convocatoria, la entidad y la URL del buscador. Abre esa página, busca el número y descarga el Word para comprobar bases y plazo. **Fecha Fin/Cierre de Publicación** es el vencimiento en el portal (`validThrough`), no la fecha de postulación.
 
 ### Bumeran (CLI)

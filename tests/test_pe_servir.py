@@ -66,10 +66,36 @@ class Servir(unittest.TestCase):
         self.assertEqual(session.posts[1]["javax.faces.source"], form + ":next")
 
 
+    def test_puesto_searches_the_job_title_field(self):
+        form = servir.KINDS["laboral"][1]
+        posts = []
+
+        class Response:
+            def __init__(self, body):
+                self.text = body
+
+            def raise_for_status(self):
+                pass
+
+        class Session:
+            def get(self, url, timeout):
+                return Response(page(form, "laboral", 1, 1, "v0"))
+
+            def post(self, url, data, headers, timeout):
+                posts.append(data)
+                return Response(f'<partial-response><changes><update id="{form}"><![CDATA[{page(form, "laboral", 1, 1, "x")}]]></update>'
+                                '<update id="javax.faces.ViewState"><![CDATA[v1]]></update></changes></partial-response>')
+
+        servir.search_kind(Session(), "laboral", "supervisor", "Lima", 10, None, "puesto")
+        servir.search_kind(Session(), "laboral", "economia", "Lima", 10, None)
+        self.assertEqual(posts[0][form + ":txtPuesto"], "supervisor")
+        self.assertNotIn(form + ":txtPerfil", posts[0])
+        self.assertEqual(posts[1][form + ":txtPerfil"], "economia")
+
     def test_both_listings_get_their_own_limit(self):
         calls = []
 
-        def fake(session, kind, query, location, limit, jobage):
+        def fake(session, kind, query, location, limit, jobage, field="perfil"):
             calls.append((kind, limit))
             return [{"id": kind + str(i)} for i in range(limit)]
 

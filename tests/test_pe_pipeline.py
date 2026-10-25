@@ -169,6 +169,36 @@ class Buscar(unittest.TestCase):
         state = json.loads((self.tmp / "seen.json").read_text(encoding="utf-8"))["seen"]
         self.assertEqual(state["practicas_70376"]["posted_date"], "2026-10-23")
 
+    def test_paginas_reads_further_pages_until_the_listing_ends(self):
+        (self.tmp / "q.json").write_text(json.dumps({"paginas": 1, "consultas": [
+            {"portal": "computrabajo", "q": "asistente de seleccion", "l": "Lima", "paginas": 5}]}), encoding="utf-8")
+        pages = {1: ["A1", "A2"], 2: ["B1"], 3: []}  # page 3 comes back empty: stop there
+
+        def fake_run(cmd, out=None, timeout=180):
+            self.calls.append((cmd, out))
+            page = int(cmd[cmd.index("--page") + 1]) if "--page" in cmd else 1
+            value = {"results": [{"id": i, "title": "Asistente de Selección", "company": "X",
+                                  "url": f"https://pe.computrabajo.com/oferta-{i}"} for i in pages.get(page, [])]}
+            return value, None
+
+        self.patch(pp, "run_json", fake_run)
+        self.assertEqual(self.run_cmd(), 0)
+        self.assertEqual(len(self.calls), 3)
+        self.assertNotIn("--page", self.calls[0][0])
+        self.assertEqual(self.calls[1][1].name, "ct_asistente-de-seleccion-p2.json")
+        report = json.loads((self.tmp / "reports/busqueda/nuevas.json").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(p["id"] for p in report["nuevas"]), ["A1", "A2", "B1"])
+
+    def test_servir_campo_reaches_the_cli(self):
+        (self.tmp / "q.json").write_text(json.dumps({"consultas": [
+            {"portal": "talento-peru", "q": "supervisor", "l": "Lima", "tipo": "laboral", "campo": "puesto"}]}),
+            encoding="utf-8")
+        self.patch(pp, "run_json", lambda cmd, out=None, timeout=180: (self.calls.append((cmd, out)), ({"results": []}, None))[1])
+        self.assertEqual(self.run_cmd(), 0)
+        cmd, out = self.calls[0]
+        self.assertEqual(cmd[cmd.index("--campo") + 1], "puesto")
+        self.assertEqual(out.name, "sv_supervisor-laboral-puesto.json")
+
 
 class Estado(unittest.TestCase):
     def test_json_brief_lists_what_closes_and_what_lacks_a_cv(self):

@@ -98,8 +98,10 @@ def partial(response, form):
     return update, view
 
 
-def search_kind(session, kind, query, location, limit, jobage):
+def search_kind(session, kind, query, location, limit, jobage, field="perfil"):
     page, form, query_field = KINDS[kind]
+    if kind == "laboral" and field == "puesto":
+        query_field = "txtPuesto"  # the job title; txtPerfil matches the career a posting asks for
     url = BASE + page
     response = session.get(url, timeout=30)
     response.raise_for_status()
@@ -150,7 +152,7 @@ def search_kind(session, kind, query, location, limit, jobage):
     return found
 
 
-def search(query, location="Lima", kind="ambos", limit=100, jobage=None):
+def search(query, location="Lima", kind="ambos", limit=100, jobage=None, field="perfil"):
     kinds = list(KINDS) if kind == "ambos" else [kind]
     for selected in kinds:
         code, reason = robots_check.gate(BASE + KINDS[selected][0])
@@ -162,7 +164,7 @@ def search(query, location="Lima", kind="ambos", limit=100, jobage=None):
         # jobs and the internships are never read.
         results = []
         for selected in kinds:
-            results.extend(search_kind(session, selected, query, location, limit, jobage))
+            results.extend(search_kind(session, selected, query, location, limit, jobage, field))
     return {"results": results, "query": query, "location": location, "type": kind}
 
 
@@ -178,11 +180,14 @@ def main(argv=None):
     se.add_argument("--tipo", choices=["laboral", "practicas", "ambos"], default="ambos")
     se.add_argument("--limit", type=int, default=100, help="per listing (laboral and practicas each)")
     se.add_argument("--jobage", type=int)
+    se.add_argument("--campo", choices=["perfil", "puesto"], default="perfil",
+                    help="laboral: perfil = the career a posting asks for (economia, psicologia); "
+                         "puesto = words in the job title (supervisor, analista)")
     args = ap.parse_args(argv)
     if args.limit < 1 or args.limit > 500 or args.jobage is not None and args.jobage < 0:
         ap.error("--limit debe ser 1..500 y --jobage no puede ser negativo")
     try:
-        print(json.dumps(search(args.query, args.location, args.tipo, args.limit, args.jobage), ensure_ascii=False))
+        print(json.dumps(search(args.query, args.location, args.tipo, args.limit, args.jobage, args.campo), ensure_ascii=False))
         return 0
     except (requests.RequestException, ET.ParseError, ValueError, RuntimeError) as exc:
         print(json.dumps({"error": str(exc), "code": "SERVIR_ERROR"}, ensure_ascii=False), file=sys.stderr)

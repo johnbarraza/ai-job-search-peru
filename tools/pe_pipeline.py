@@ -75,6 +75,8 @@ PORTALS = {"linkedin": ("li", "li"), "bumeran": ("bu", "bm"), "computrabajo": ("
            "talento-peru": ("sv", "sv"), "practicas-pe": ("pr", "pr")}
 LINKEDIN_PAUSE = 6  # seconds between LinkedIn calls: it answers bursts with 429
 LINKEDIN_MAX_429 = 2  # consecutive 429s before the run stops asking LinkedIn
+PAGED = {"linkedin", "bumeran", "computrabajo"}  # CLIs that take --page
+MAX_PAGES = 10
 
 # Every portal the search covers. `cli` portals run in
 # `buscar`; the others get a search link per manual query ({q} is the query). A profile can
@@ -293,6 +295,8 @@ def cmd_buscar(args) -> int:
             cmd += ["--jobage", str(jobage)]
         if portal == "talento-peru" and c.get("tipo"):
             cmd += ["--tipo", c["tipo"]]
+        if portal == "talento-peru" and c.get("campo") in ("perfil", "puesto"):
+            cmd += ["--campo", c["campo"]]
         remote = c.get("remote")
         abroad_query = portal == "linkedin" and bool(place) and not pe_revision.PERU_PLACES.search(place)
         if abroad_query and abroad["mode"] == "no":
@@ -304,26 +308,45 @@ def cmd_buscar(args) -> int:
             cmd += ["--remote", remote]
         print(f"[{i}/{len(queries)}] {portal}: {c.get('q')} · {place}" + (f" · {remote}" if remote else ""))
         run["consultas"] += 1
-        if portal == "linkedin":
-            if linkedin_429 >= LINKEDIN_MAX_429:
-                run["fallidas"] += 1
-                run["errores"].append(f"{c.get('q')} · {place}: omitida (LinkedIn limitó las consultas)")
-                continue
-            wait = LINKEDIN_PAUSE - (time.monotonic() - last_linkedin)
-            if wait > 0:
-                time.sleep(wait)
-            last_linkedin = time.monotonic()
-        name = f'{PORTALS[portal][0]}_{slug(" ".join(x for x in (c.get("q"), c.get("tipo") if portal == "talento-peru" else "", place if portal == "linkedin" and "lima" not in place.lower() else "") if x))}.json'
-        data, error = run_json(cmd, run_dir / name)
-        if error:
+        stem = f'{PORTALS[portal][0]}_{slug(" ".join(x for x in (c.get("q"), c.get("tipo") if portal == "talento-peru" else "", c.get("campo") if portal == "talento-peru" and c.get("campo") != "perfil" else "", place if portal == "linkedin" and "lima" not in place.lower() else "") if x))}'
+        # One page is 20 results on Computrabajo and Bumeran and 10 on LinkedIn: a broad query
+        # needs more. LinkedIn has its own default, since every page is another request to it.
+        default_pages = cfg.get("paginas_linkedin") if portal == "linkedin" else cfg.get("paginas")
+        pages = max(1, min(MAX_PAGES, int(c.get("paginas") or default_pages or 1))) if portal in PAGED else 1
+        results, failed, seen_page = [], None, set()
+        for page in range(1, pages + 1):
+            if portal == "linkedin":
+                if linkedin_429 >= LINKEDIN_MAX_429:
+                    failed = "omitida (LinkedIn limitó las consultas)" if page == 1 else None
+                    break
+                wait = LINKEDIN_PAUSE - (time.monotonic() - last_linkedin)
+                if wait > 0:
+                    time.sleep(wait)
+                last_linkedin = time.monotonic()
+            page_cmd = cmd + (["--page", str(page)] if page > 1 else [])
+            data, error = run_json(page_cmd, run_dir / (stem + (f"-p{page}" if page > 1 else "") + ".json"))
+            if error:
+                linkedin_429 = linkedin_429 + 1 if portal == "linkedin" and "429" in error else 0
+                if page == 1:
+                    failed = error
+                else:  # the first pages already came back: keep them, note the gap
+                    run["errores"].append(f"{c.get('q')} · {place} · página {page}: {error}")
+                break
+            linkedin_429 = 0
+            rows = [p for p in (data or {}).get("results") or [] if isinstance(p, dict)]
+            ids = {pe_frescura.posting_id(p) for p in rows} - seen_page
+            if not ids:
+                break  # an empty page, or the last one again: the listing ended
+            seen_page |= ids
+            results += rows
+            if page > 1:
+                run["paginas_extra"] = run.get("paginas_extra", 0) + 1
+        if failed:
             run["fallidas"] += 1
-            run["errores"].append(f"{c.get('q')} · {place}: {error}")
-            print(f"  falló: {error}", file=sys.stderr)
-            linkedin_429 = linkedin_429 + 1 if portal == "linkedin" and "429" in error else 0
+            run["errores"].append(f"{c.get('q')} · {place}: {failed}")
+            print(f"  falló: {failed}", file=sys.stderr)
             continue
-        linkedin_429 = 0
         run["ok"] += 1
-        results = [p for p in (data or {}).get("results") or [] if isinstance(p, dict)]
         run["resultados"] += len(results)
         for p in results:
             pid = pe_frescura.posting_id(p)
