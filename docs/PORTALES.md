@@ -13,7 +13,8 @@ Qué portales cubre la búsqueda, cómo, y qué se sabe de cada uno. El estado d
 | Talento Perú (SERVIR) | CLI `tools/pe_servir.py` | Formulario JSF probado para laborales y prácticas | Ministerios, reguladores y entidades públicas |
 | Bumeran | CLI `bumeran-search` | Funciona | Prácticas, asistentes, analistas junior y finanzas |
 | Laborum | Enlace · `jev-search` | Responde; resultados por JavaScript | Empresas privadas: administración, finanzas, análisis |
-| Indeed Perú | Enlace · `jev-search` | Responde | Vacantes de muchas empresas y portales |
+| Indeed Perú | Enlace manual | Búsqueda pública | Vacantes de muchas empresas y portales |
+| Glassdoor Perú | Enlace manual | Ofertas en Lima | Prácticas y puestos junior; reseñas de empresas |
 | Computrabajo | CLI `computrabajo-search` | Funciona | Mucho volumen; hay que filtrar |
 | Empleos Perú (MTPE) | Enlace · `jev-search` | Responde | Bolsa pública del Ministerio de Trabajo |
 | Prácticas.pe | CLI `tools/pe_practicas.py` | Búsqueda por `q` y `dep`, fichas individuales | Prácticas públicas y privadas en Lima |
@@ -54,10 +55,12 @@ Qué portales cubre la búsqueda, cómo, y qué se sabe de cada uno. El estado d
 - `robots.txt` no bloquea `/search-jobs`.
 - **Para darle CLI:** ubicar la API JSON que usa la página. Candidato para `/add-portal`.
 
-### Indeed Perú (enlace)
+### Indeed Perú y Glassdoor Perú (enlaces)
 
 - `pe.indeed.com/jobs?q=...&l=Lima` responde 200 con resultados en el HTML.
-- Los términos de Indeed no permiten la extracción automática, así que se queda como enlace (o `jev-search`, que lee como una persona y se detiene ante un CAPTCHA).
+- Glassdoor muestra ofertas para Lima, por ejemplo en su [búsqueda de `practicante`](https://www.glassdoor.com/Job/lima-practicante-jobs-SRCH_IL.0%2C4_IC3033968_KO5%2C16.htm). El enlace de la cobertura abre esa búsqueda; cambia las palabras clave dentro del portal.
+- JobSpy declara soporte para Indeed Perú, pero no marca Glassdoor Perú entre los países compatibles de su conector de Glassdoor. Que Glassdoor tenga anuncios peruanos no demuestra que ese conector funcione allí.
+- Los términos de [Indeed](https://pe.indeed.com/legal) y [Glassdoor](https://www.glassdoor.com/about/terms-2022-12-01/) restringen el scraping automatizado sin permiso. Ambos quedan como enlaces para búsqueda manual; no se incluyen en `buscar` ni se recomiendan por `jev-search`.
 
 ### Computrabajo (CLI)
 

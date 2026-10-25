@@ -87,7 +87,8 @@ Formato de las consultas, opciones y qué archivo usa cada paso: [docs/PIPELINE.
 | Talento Perú (SERVIR) | CLI `tools/pe_servir.py` para convocatorias laborales y prácticas; `pip install -r tools/requirements-servir.txt` |
 | Bumeran | CLI `bumeran-search` |
 | Laborum | Enlace de búsqueda por consulta; o `jev-search` |
-| Indeed Perú | Enlace de búsqueda por consulta (solo enlace); o `jev-search` |
+| Indeed Perú | Enlace de búsqueda por consulta; revisión manual |
+| Glassdoor Perú | Enlace a ofertas de prácticas en Lima; revisión manual |
 | Computrabajo | CLI `computrabajo-search` |
 | Empleos Perú (MTPE) | Enlace; o `jev-search` |
 | Prácticas.pe | CLI `tools/pe_practicas.py` para buscar por carrera en Lima y leer cada convocatoria; `pip install -r tools/requirements-servir.txt` |
@@ -198,7 +199,7 @@ Becas de formación de reguladores, del BCRP y de la SMV (enero a marzo, con exa
 
 ### jev-search y el submódulo jev-browse
 
-**jev-search** (opcional, de pago) cubre Laborum, Empleos Perú, Indeed o la bolsa de tu universidad con un navegador real manejado por [jev-browse](https://github.com/0x7067/jev-browse) (`.agents/skills/jev-search/`). Prácticas.pe ya tiene CLI pública.
+**jev-search** (opcional, de pago) cubre Laborum, Empleos Perú o la bolsa de tu universidad con un navegador real manejado por [jev-browse](https://github.com/0x7067/jev-browse) (`.agents/skills/jev-search/`). Indeed y Glassdoor se consultan manualmente; Prácticas.pe ya tiene CLI pública.
 
 `jev-browse` (TypeScript, MIT) vive como **submódulo de git** en `vendor/jev-browse`, siguiendo su rama `main`. El CLI ejecuta su bundle ya compilado (`bundled/cli.mjs`), así que no hay `npm install`. Para traer sus actualizaciones:
 

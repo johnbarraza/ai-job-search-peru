@@ -78,6 +78,9 @@ class Buscar(unittest.TestCase):
         self.assertIn("laborum.pe/search-jobs?q=practicante", laborum["enlaces"][0]["url"])
         bolsa = next(p for p in cov["portales"] if p["id"] == "bolsa-universidad")
         self.assertEqual(bolsa["enlaces"], [])  # each candidate adds their own board's URL
+        glassdoor = next(p for p in cov["portales"] if p["id"] == "glassdoor")
+        self.assertEqual(glassdoor["metodo"], "manual")
+        self.assertIn("glassdoor.com/Job/lima-practicante-jobs", glassdoor["enlaces"][0]["url"])
 
     def test_previous_latest_search_is_preserved_before_replacement(self):
         latest = self.tmp / "reports/busqueda/nuevas.json"
