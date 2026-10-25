@@ -691,196 +691,211 @@ def collect(state: dict, fresh_rows: list[dict], research_dir: Path, context_row
     }
 
 
-_DARK = """--bg:#0f1318;--surface:#171c23;--surface-2:#1d232c;--ink:#e7ebf0;--dim:#9ba6b4;--faint:#6f7a88;--line:#2a313b;
---accent:#9cc1ea;--accent-ink:#0f1318;--accent-soft:#1c2a3b;--go:#4ade80;--go-bg:#13301e;--warn:#fbbf24;--warn-bg:#382c0f;
---stop:#f87171;--stop-bg:#3a1717;--muted-bg:#262d37;--out:#8e99a8;--chip-place:#1b3654;--chip-sector:#222b36;
---mod-pres:#c7d6ea;--mod-pres-bg:#24324a;--mod-hib:#c4b5fd;--mod-hib-bg:#2d2350;--shadow:0 1px 0 rgba(255,255,255,.03),0 10px 30px -18px rgba(0,0,0,.8);
-color-scheme:dark"""
+_DARK = """--bg:#0f1318;--surface:#171c23;--surface-2:#1d232c;--ink:#e7ebf0;--ink-2:#c9d1db;--dim:#9ba6b4;--faint:#8a94a3;
+--line:#2a313b;--line-strong:#3a424e;--accent:#8fb0ff;--accent-ink:#0f1318;--accent-soft:#1c2a4a;--accent-deep:#c7d6ff;
+--go:#8fb0ff;--go-bg:#1c2a4a;--go-ink:#c7d6ff;--warn:#f5a35c;--warn-bg:#3a2712;--warn-ink:#fcd9b0;
+--stop:#f08a6a;--stop-bg:#3b1c12;--stop-ink:#fbc9b5;--muted-bg:#262d37;--out:#9ba6b4;--chip-place:#1c2a4a;--chip-sector:#262d37;
+--mod-pres:#c9d1db;--mod-pres-bg:#262d37;--mod-hib:#c4b5fd;--mod-hib-bg:#2d2350;--row-open:#18233a;color-scheme:dark"""
 
 # Light tokens on :root; dark ones under prefers-color-scheme (unless the host forces light)
 # and again under data-theme="dark", so a host theme toggle (or the page's own) wins both ways.
+# Blue means apply and orange means confirm: they differ in lightness as well as hue.
 CSS = """
-/* Layout: the five workflow steps as a strip, what closes this week, then one posting at a time. */
-:root{--bg:#f3f4f6;--surface:#fff;--surface-2:#f8f9fb;--ink:#17202b;--dim:#5b6675;--faint:#8b95a3;--line:#e1e4e9;
---accent:#1f3a5f;--accent-ink:#fff;--accent-soft:#e7eef7;--go:#15803d;--go-bg:#dcfce7;--warn:#a16207;--warn-bg:#fef3c7;
---stop:#b91c1c;--stop-bg:#fee2e2;--muted-bg:#e8eaee;--out:#6b7280;--chip-place:#dbe8f6;--chip-sector:#eef1f5;
---mod-pres:#1f3a5f;--mod-pres-bg:#e3e9f1;--mod-hib:#6d28d9;--mod-hib-bg:#ede9fe;
---shadow:0 1px 2px rgba(16,24,40,.05),0 12px 32px -20px rgba(16,24,40,.28);color-scheme:light}
+/* Layout: a header band with the counts, what closes this week, then filters beside one compact row per posting. */
+:root{--bg:#f5f6f8;--surface:#fff;--surface-2:#f7f8fa;--ink:#111827;--ink-2:#374151;--dim:#5b6474;--faint:#6b7280;
+--line:#e3e6eb;--line-strong:#d5d9e0;--accent:#1d4ed8;--accent-ink:#fff;--accent-soft:#e8eefe;--accent-deep:#1e3a8a;
+--go:#1d4ed8;--go-bg:#e8eefe;--go-ink:#1e3a8a;--warn:#b45309;--warn-bg:#fdf0e1;--warn-ink:#92400e;
+--stop:#9a3412;--stop-bg:#fde4d3;--stop-ink:#7c2d12;--muted-bg:#eef0f3;--out:#6b7280;--chip-place:#e8eefe;--chip-sector:#eef0f3;
+--mod-pres:#374151;--mod-pres-bg:#eef0f3;--mod-hib:#5b21b6;--mod-hib-bg:#efeafe;--row-open:#f7f9ff;color-scheme:light}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){""" + _DARK + """}}
 :root[data-theme="dark"]{""" + _DARK + """}
 [hidden]{display:none!important}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
-header,main,footer{max-width:1180px;margin:0 auto;padding-block:18px;
-padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-h1,h2,h3{text-wrap:balance;margin:0}
-.num,.ring b,.step .big,.pos{font-variant-numeric:tabular-nums}
-a{color:var(--accent);text-underline-offset:2px}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,.track:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap-x{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3,h4{text-wrap:balance;margin:0}
+.num,.kpi b,.sc b{font-variant-numeric:tabular-nums}
+a{color:var(--accent);text-underline-offset:2px}a:hover{color:var(--accent-deep)}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--muted-bg);padding:1px 5px;border-radius:4px}
 .dim{color:var(--dim)}
-.topline{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
-h1{font-size:26px;line-height:1.2;letter-spacing:-.01em}
-.sub{color:var(--dim);margin-top:6px;max-width:72ch}
-.run-date{margin:7px 0 0;color:var(--dim);font-size:12.5px}.run-date strong{color:var(--ink)}
-.icon-btn{flex:none;all:unset;cursor:pointer;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:16px}
+/* header band */
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap-x{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-top:22px;padding-bottom:18px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+h1{font-size:28px;line-height:1.15;letter-spacing:-.01em;margin-top:4px}
+.run-date{margin:6px 0 0;color:var(--dim);font-size:13px}.run-date strong{color:var(--ink);font-weight:600}
+.top-right{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.kpis{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.kpi{padding:10px 18px;border-right:1px solid var(--line);min-width:96px}.kpi:last-child{border-right:0}
+.kpi b{display:block;font-size:22px;line-height:1.2}.kpi span{font-size:12px;color:var(--dim)}
+.kpi.go{background:var(--accent-soft)}.kpi.go b{color:var(--accent)}.kpi.go span{color:var(--accent-deep)}
+.kpi.warn b{color:var(--warn)}
+.icon-btn{all:unset;cursor:pointer;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:16px}
 .icon-btn:hover{border-color:var(--accent)}
-/* workflow strip */
-.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
-.step{padding:14px 16px;border-right:1px solid var(--line);min-width:0}.step:last-child{border-right:0}
-.step .n{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.step .big{font-size:26px;font-weight:700;line-height:1.15;margin-top:4px}.step small{display:block;color:var(--dim);font-size:12px;line-height:1.4}
-.step:last-child .big{color:var(--go)}
+main.wrap-x{padding-top:26px;padding-bottom:40px;display:flex;flex-direction:column;gap:26px}
+h2{font-size:18px;line-height:1.3}
+.h2-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.note{font-size:12px;color:var(--dim);margin:0}
+.count-pill{font-size:12px;font-weight:700;background:var(--accent-soft);color:var(--accent-deep);border-radius:999px;padding:1px 9px;vertical-align:2px}
+/* the workflow, folded */
+.flowd{background:transparent;border:0;padding:0;margin:0}
+.flowd>summary{font-size:13px;font-weight:600;color:var(--dim)}
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-top:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.step{padding:12px 14px;border-right:1px solid var(--line);min-width:0}.step:last-child{border-right:0}
+.step .n{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:600;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.step .big{font-size:20px;font-weight:700;margin-top:2px}.step small{display:block;color:var(--dim);font-size:12px;line-height:1.4}
 .tag{font-size:10.5px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--dim);font-weight:500;text-transform:none;letter-spacing:0}
-/* sections */
-h2{font-size:18px;margin:30px 0 12px;display:flex;align-items:center;gap:8px}
-.count-pill{font-size:12px;font-weight:700;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 9px}
-/* what closes this week */
-.soon-wrap{display:flex;align-items:center;gap:8px;margin-top:12px}
-.soon-track{--visible:4;display:flex;gap:10px;min-width:0;flex:1;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;scrollbar-width:none}
-.soon-track::-webkit-scrollbar{display:none}
-.soon-nav{flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;background:var(--surface-2);color:var(--ink);font:700 20px/1 system-ui;cursor:pointer}
-.soon-nav:disabled{opacity:.35;cursor:default}
-.soon-nav[hidden]{display:none}
-.soon-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
-.soon-card{flex:0 0 calc((100% - (var(--visible) - 1)*10px)/var(--visible));scroll-snap-align:start;scroll-snap-stop:always}
+/* this week */
+.week{display:flex;flex-direction:column;gap:12px}
+.soon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:12px}
+.soon-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.soon-card.urgent{border-color:var(--warn)}
+.soon-card .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.soon-card .row1 b{font-size:15px}
 .soon-card .t{font-weight:600;line-height:1.3}.soon-card .co{color:var(--dim);font-size:12.5px}
-.soon-card .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.soon-card .how{margin-top:0}
-.link-btn{all:unset;cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:600}.link-btn:hover{text-decoration:underline}
-.note{font-size:12px;color:var(--faint);margin:6px 0 0}
-/* toolbar */
-.toolbar{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-bottom:12px}
-.filters{display:flex;flex-wrap:wrap;gap:8px}
-.filters input,.filters select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);min-width:0}
-.filters input[type=search]{flex:1 1 220px}
-.filters select{flex:0 1 auto}
-.quick{display:flex;align-items:center;flex-wrap:wrap;gap:7px;font-size:12px;color:var(--dim)}
-.quick button{font:inherit;cursor:pointer;border:1px solid transparent}.quick button[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:1px}
-.quick select{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);color:var(--ink);max-width:100%;min-width:0}
-.legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:12px;color:var(--dim)}
-/* carousel bar */
-.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;background:var(--bg)}
-.bar.list-mode .ticks,.bar.list-mode .pos{display:none}
-.nav{all:unset;cursor:pointer;width:38px;height:38px;border-radius:999px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-size:20px;line-height:1;font-weight:700}
-.nav:hover{filter:brightness(1.12)}.nav[disabled]{opacity:.35;cursor:default;filter:none}
-.pos{font-size:14px;color:var(--dim);min-width:74px;text-align:center}.pos b{color:var(--ink);font-size:16px}
-.ticks{flex:1 1 200px;display:flex;gap:2px;height:22px;align-items:center;min-width:0}
-.tick{all:unset;cursor:pointer;flex:1 1 0;min-width:2px;height:8px;border-radius:2px;background:var(--line);transition:height .15s}
-.tick.go{background:var(--go)}.tick.warn{background:var(--warn)}.tick.stop{background:var(--stop)}.tick.muted{background:var(--faint)}
-.tick.done{opacity:.35}.tick.cur{height:20px;box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--ink)}
-.tick:hover{height:16px}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
-.seg button{all:unset;cursor:pointer;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--dim)}
-.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
-.progress{font-size:12.5px;color:var(--dim)}.progress b{color:var(--ink)}
-/* the track: one card per view, swipe or arrows; .list shows them all */
-.track{display:flex;gap:16px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;
-scrollbar-width:none;align-items:flex-start;position:relative;transition:height .2s ease;padding:2px}
-.track::-webkit-scrollbar{display:none}
-.track>.card{flex:0 0 calc(100% - 4px);scroll-snap-align:start;scroll-snap-stop:always}
-.track.list{display:grid;grid-template-columns:minmax(0,1fr);overflow:visible;height:auto!important;gap:14px}
-.empty{padding:40px 16px;text-align:center;color:var(--dim);background:var(--surface);border:1px dashed var(--line);border-radius:14px}
-/* the posting card */
-.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px 20px 20px;min-width:0;overflow:hidden}
-.card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--line)}
-.card.go::before{background:var(--go)}.card.warn::before{background:var(--warn)}.card.stop::before{background:var(--stop)}.card.muted::before{background:var(--faint)}
-.card.is-done{opacity:.6}.card.is-done:hover{opacity:1}
-.card-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.card-top .grow{flex:1}
-.done-l{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--dim);cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:3px 10px 3px 8px;user-select:none}
-.done-l:has(input:checked){background:var(--go-bg);color:var(--go);border-color:transparent}
-.done-l input{margin:0;accent-color:var(--go)}
-.card-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start;margin-top:14px}
-.card-head h3{font-size:19px;line-height:1.3}.card-head h3 a{color:var(--ink);text-decoration:none}.card-head h3 a:hover{color:var(--accent);text-decoration:underline}
-.co{color:var(--dim);font-weight:500;margin-top:2px}
-.ring{--p:0;--c:var(--accent);width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--line) 0)}
-.ring>span{width:52px;height:52px;border-radius:50%;background:var(--surface);display:grid;place-items:center;text-align:center;line-height:1}
-.ring b{font-size:19px}.ring small{display:block;font-size:9.5px;color:var(--faint);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
-.card.go .ring{--c:var(--go)}.card.warn .ring{--c:var(--warn)}.card.stop .ring{--c:var(--stop)}.card.muted .ring{--c:var(--faint)}
-.verdict{font-size:11.5px;color:var(--dim);text-align:center;margin-top:4px;white-space:nowrap}
-.card-body{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px 28px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
-.blk+.blk{margin-top:14px}
-.blk h4{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
-.blk ul{margin:0;padding-left:18px}.blk li{margin:0 0 4px}
-.blk.gaps li::marker{color:var(--stop)}.blk.strengths li::marker{color:var(--go)}
-.apply{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-.logo{flex:none;width:40px;height:40px;border-radius:10px;object-fit:contain;background:#fff center/contain no-repeat;border:1px solid var(--line)}
-.logo.none{display:inline-flex;align-items:center;justify-content:center;background:var(--muted-bg);color:var(--dim);font-size:13px;font-weight:700}
+.soon-card .how{font-size:12px;color:var(--dim);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.soon-card .cvst{font-size:12px;font-weight:600;color:var(--dim)}.soon-card .cvst.ok{color:var(--accent)}
+.soon-card .acts{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.soon-more{background:transparent;border:0;padding:0;margin:0}
+.soon-more>summary{font-size:13px;font-weight:600;color:var(--accent)}
+.soon-more .soon-grid{margin-top:12px}
+.link-btn{all:unset;cursor:pointer;color:var(--accent);font-size:13px;font-weight:600;min-height:32px;display:inline-flex;align-items:center}.link-btn:hover{text-decoration:underline}
+/* decide: filters beside the list */
+.decide{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.side{flex:1 1 240px;max-width:280px;display:flex;flex-direction:column;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.side .fl{display:flex;flex-direction:column;gap:6px}
+.side .fl>label,.side .fl>.lb{font-size:12px;font-weight:600;color:var(--ink-2)}
+.side input[type=search],.side select{font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface-2);color:var(--ink);min-height:44px;width:100%;min-width:0}
+.acts-list{display:flex;flex-direction:column;gap:6px}
+.acts-list button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:40px;padding:0 12px;border-radius:9px;font-size:14px;background:var(--muted-bg);color:var(--ink-2)}
+.acts-list button[aria-pressed="true"]{background:var(--ink);color:var(--surface);font-weight:700}
+.acts-list button span{font-variant-numeric:tabular-nums}
+.quick{display:flex;flex-wrap:wrap;gap:6px}
+.quick button{font:inherit;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:6px 12px;min-height:36px;font-size:13px;font-weight:600}
+.quick button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.legend{font-size:12px;color:var(--dim);border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:6px}
+.pref{font-size:12px;color:var(--dim);display:flex;flex-direction:column;gap:8px}
+.pref b{color:var(--ink)}.pref span{overflow-wrap:anywhere}
+.listcol{flex:999 1 640px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.list-head h2 .dim{font-weight:500}
+.list-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.list-tools select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink);min-height:40px}
+.progress b{color:var(--ink)}
+.cols{display:grid;grid-template-columns:var(--cols);gap:14px;padding:0 18px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+:root{--cols:64px minmax(0,1fr) 112px 132px 132px 140px 20px}
+.track{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.empty{padding:36px 16px;text-align:center;color:var(--dim);background:var(--surface);border:1px dashed var(--line);border-radius:14px}
+/* one posting: a row that opens */
+.card{border-bottom:1px solid var(--line);min-width:0}.card:last-child{border-bottom:0}
+.card.is-done .row{opacity:.55}
+.rowd{margin:0;padding:0;border:0;border-radius:0;background:transparent}
+.row{list-style:none;cursor:pointer;display:grid;grid-template-columns:var(--cols);gap:14px;align-items:center;padding:14px 18px}
+.row::-webkit-details-marker{display:none}
+.row:hover{background:var(--surface-2)}
+.rowd[open]>.row{background:var(--row-open)}
+.sc{display:flex;flex-direction:column;gap:5px}.sc b{font-size:20px;line-height:1}
+.bar{display:block;width:48px;height:4px;border-radius:2px;background:var(--line)}.bar i{display:block;height:4px;border-radius:2px;background:var(--faint)}
+.card.go .bar i{background:var(--go)}.card.warn .bar i{background:var(--warn)}.card.stop .bar i{background:var(--stop)}
+.who{display:flex;align-items:center;gap:12px;min-width:0}
+.tt{display:flex;flex-direction:column;min-width:0}
+.tt .t{font-weight:600;line-height:1.3;color:var(--ink)}.tt .co{font-size:13px;color:var(--dim)}
+.tags{display:contents}
+.c-fresh{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.dot{flex:none;width:8px;height:8px;border-radius:4px;background:var(--faint)}
+.dot.f4,.dot.f3{background:var(--go)}.dot.f2{background:var(--warn)}.dot.f1{background:var(--faint)}
+.chev{display:block;justify-self:end;width:16px;height:16px;overflow:visible;transform-origin:50% 50%;transition:transform .15s;color:var(--dim)}.rowd[open] .chev{transform:rotate(180deg)}
+.nodate{font-size:13px;color:var(--dim)}
+.detail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:6px 18px 22px 96px;background:var(--row-open)}
+.detail h4{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.detail h4:not(:first-child){margin-top:16px}
+.detail ul{margin:0;padding-left:18px}.detail li{margin:0 0 6px}
+.d-why li::marker{color:var(--go)}.d-gaps li::marker{color:var(--warn)}
+.apply{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;align-self:start}
+.apply h4{margin:0}
+.d-links{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+.logo{flex:none;width:36px;height:36px;border-radius:9px;object-fit:contain;background:#fff center/contain no-repeat;border:1px solid var(--line)}
+.logo.none{display:inline-flex;align-items:center;justify-content:center;background:var(--muted-bg);color:var(--ink-2);font-size:12px;font-weight:700;border-color:transparent}
 .soon-card .logo{width:28px;height:28px;border-radius:7px;font-size:10px}
 /* badges, pills and chips */
-.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
-.badge.go{background:var(--go-bg);color:var(--go)}.badge.warn{background:var(--warn-bg);color:var(--warn)}
-.badge.stop{background:var(--stop-bg);color:var(--stop)}.badge.muted{background:var(--muted-bg);color:var(--dim)}
+.badge,.close,.fresh{display:inline-flex;align-items:center;justify-self:start;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.badge.go{background:var(--go-bg);color:var(--go-ink)}.badge.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.badge.stop{background:var(--stop-bg);color:var(--stop-ink)}.badge.muted{background:var(--muted-bg);color:var(--ink-2)}
 .badge.out{background:var(--muted-bg);color:var(--out)}
+.close{background:var(--muted-bg);color:var(--ink-2)}
+.close.today{background:var(--warn);color:var(--surface)}.close.soon{background:var(--warn-bg);color:var(--warn-ink)}
+.close.week{background:var(--warn-bg);color:var(--warn-ink)}.close.past{background:transparent;color:var(--faint);text-decoration:line-through}
+.fresh.f4{background:var(--go);color:var(--accent-ink)}.fresh.f3{background:var(--go-bg);color:var(--go-ink)}
+.fresh.f2{background:var(--warn-bg);color:var(--warn-ink)}.fresh.f1{background:var(--muted-bg);color:var(--ink-2)}
 .risk{font-size:12px}.risk.medio{color:var(--warn)}.risk.alto{color:var(--stop)}
-.fresh,.close{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
-.fresh.f4{background:var(--go);color:var(--surface)}.fresh.f3{background:var(--go-bg);color:var(--go)}
-.fresh.f2{background:var(--warn-bg);color:var(--warn)}.fresh.f1{background:var(--stop-bg);color:var(--stop)}
-.close{border:1px solid var(--line);color:var(--dim);font-weight:600}
-.close.today{background:var(--stop);color:#fff;border-color:transparent}.close.soon{background:var(--stop-bg);color:var(--stop);border-color:transparent}
-.close.week{background:var(--warn-bg);color:var(--warn);border-color:transparent}.close.past{color:var(--faint);text-decoration:line-through}
 .signals{color:var(--dim);font-size:12px;margin-top:4px!important}
-.how{margin-top:6px;font-size:12.5px;color:var(--dim)}.how b{color:var(--ink)}
-.cvrow{margin:0 0 8px}
-.btn-cv{display:inline-flex;align-items:center;gap:6px;font:600 13px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:9px 14px;border-radius:9px;
+.how{font-size:13px;color:var(--ink-2)}.how b{color:var(--ink)}
+.cvrow{margin:0}
+.btn-cv{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;font:600 14px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:44px;padding:0 16px;border-radius:10px;
 border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);text-decoration:none;cursor:pointer}
 .btn-cv::before{content:"↓";font-weight:700}
-.btn-cv:hover{filter:brightness(1.12)}.btn-cv[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.btn-cv:hover{filter:brightness(1.1);color:var(--accent-ink)}.btn-cv[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.soon-card .btn-cv{min-height:36px;padding:0 12px;font-size:13px}
 .people{margin:3px 0 0;padding-left:16px}.people li{margin:1px 0}
-.meta{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:8px}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
 .pill{display:inline-block;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:600;line-height:1.5}
 .pill.mod-pres{background:var(--mod-pres-bg);color:var(--mod-pres)}.pill.mod-hib{background:var(--mod-hib-bg);color:var(--mod-hib)}
-.pill.mod-rem{background:var(--go-bg);color:var(--go)}.pill.mod-nd{border:1px dashed var(--line);color:var(--dim);font-weight:500}
-.pill.abroad{background:var(--accent-soft);color:var(--accent)}.pill.abroad-onsite{background:var(--warn-bg);color:var(--warn)}
-.pref{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;font-size:12.5px;padding-top:10px;border-top:1px solid var(--line)}
-.pref span{min-width:0;overflow-wrap:anywhere}
-.nuevas .filters{margin-top:10px}.nuevas table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px;min-width:760px}
-.nuevas th,.nuevas td{text-align:left;vertical-align:top;padding:7px 8px;border-bottom:1px solid var(--line)}
-.nuevas th{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}.nuevas .wrap{overflow-x:auto;max-height:70vh;overflow-y:auto}
-.cov table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px;min-width:760px}
-.cov th,.cov td{text-align:left;vertical-align:top;padding:7px 8px;border-bottom:1px solid var(--line)}
-.cov th{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
-.cov .wrap{overflow-x:auto}.cov .links a{margin-right:8px;white-space:nowrap}
-.st{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
-.st.ok{background:var(--go-bg);color:var(--go)}.st.err{background:var(--stop-bg);color:var(--stop)}.st.man{background:var(--muted-bg);color:var(--dim)}
-.pill.lvl{background:var(--muted-bg);color:var(--ink);font-weight:500}.src{font-size:11.5px;color:var(--dim)}
+.pill.mod-rem{background:var(--go-bg);color:var(--go-ink)}.pill.mod-nd{border:1px dashed var(--line-strong);color:var(--dim);font-weight:500}
+.pill.abroad{background:var(--accent-soft);color:var(--accent-deep)}.pill.abroad-onsite{background:var(--warn-bg);color:var(--warn-ink)}
+.pill.lvl{background:var(--muted-bg);color:var(--ink);font-weight:500}.src{font-size:12px;color:var(--dim)}
 .chip{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;line-height:1.6;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
 button.chip{font:inherit;font-size:12px;cursor:pointer}button.chip:hover{outline:1px solid var(--accent)}
 .chip.place{background:var(--chip-place);border-color:transparent;font-weight:600}
 .chip.zone{color:var(--dim)}
 .chip.sector{background:var(--chip-sector);border-color:transparent}
-.chip.kind{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.chip.kind{background:var(--warn-bg);color:var(--warn-ink);border-color:transparent}
 .chip.muted{color:var(--dim);border-style:dashed}
-.ev{font-size:11.5px;color:var(--dim)}
-.dots{letter-spacing:1px}.dots.conf-alta{color:var(--go)}.dots.conf-media{color:var(--warn)}.dots.conf-baja{color:var(--stop)}
-.ctx{display:grid;gap:6px;font-size:12.5px}
-.ctx-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:start}
-.ctx-k{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;padding-top:3px;font-weight:600}
+.ev{font-size:12px;color:var(--dim)}
+.dots{letter-spacing:1px}.dots.conf-alta{color:var(--go)}.dots.conf-media{color:var(--warn)}.dots.conf-baja{color:var(--faint)}
+.ctx{display:grid;gap:6px;font-size:13px}
+.ctx-row{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px;align-items:start}
+.ctx-k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;padding-top:3px;font-weight:600}
 .ctx-v{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
 .ctx-v .ev,.ctx-v .ctx-note{flex-basis:100%}
-.ctx-note{color:var(--dim);font-size:11.5px}
+.ctx-note{color:var(--dim);font-size:12px}
 .ctx-btns{gap:6px}
-.btn{display:inline-block;padding:3px 11px;border:1px solid var(--line);border-radius:7px;font-size:12px;text-decoration:none;color:var(--accent);background:var(--surface);font-weight:600}
+.btn{display:inline-block;padding:4px 11px;border:1px solid var(--line-strong);border-radius:8px;font-size:12px;text-decoration:none;color:var(--accent);background:var(--surface);font-weight:600}
 .btn:hover{border-color:var(--accent)}
 .rating b{font-size:15px}
-details{margin:18px 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 16px}
-details[open]{padding-bottom:16px}
-summary{cursor:pointer;font-weight:700}
-details .track{margin-top:12px}
-details .card{box-shadow:none}
+.done-l{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;min-height:36px;user-select:none}
+.done-l input{margin:0;width:16px;height:16px;accent-color:var(--accent)}
+/* summary cards and the folded sections */
+.more{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));gap:12px}
+.more a{display:flex;flex-direction:column;gap:2px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;text-decoration:none;color:var(--ink)}
+.more a:hover{border-color:var(--accent);color:var(--ink)}
+.more b{font-size:20px;font-variant-numeric:tabular-nums}.more strong{font-weight:600}.more span{font-size:12px;color:var(--dim)}
+details.sec{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+details.sec>summary{cursor:pointer;font-weight:700}
+details.sec .track{margin-top:12px}
 .unranked{margin:10px 0 0;padding-left:18px}.unranked li{margin:4px 0}
-.fine{font-size:12px;color:var(--faint);max-width:90ch}
-footer{color:var(--faint);font-size:12px;padding-bottom:28px}
-@media (max-width:900px){.soon-track{--visible:2}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.step{border-bottom:1px solid var(--line)}
-.step:nth-child(2n){border-right:0}.card-body{grid-template-columns:minmax(0,1fr)}}
-@media (max-width:560px){.soon-track{--visible:1}.soon-nav{width:30px;height:30px}.flow{grid-template-columns:minmax(0,1fr)}.step{border-right:0}h1{font-size:22px}
-.card{padding:16px 14px 16px}.card-head{grid-template-columns:auto minmax(0,1fr)}.card-head .score{grid-column:1/-1;display:flex;align-items:center;gap:10px}
-.verdict{margin:0}.ticks{order:5;flex-basis:100%}}
-@media print{.bar,.toolbar,.icon-btn,.soon-nav{display:none}.soon-track{display:block;overflow:visible}.soon-card{break-inside:avoid;margin-bottom:12px}.track{display:block;height:auto!important;overflow:visible}.card{break-inside:avoid;margin-bottom:12px;box-shadow:none}}
-@media (prefers-reduced-motion:reduce){.track{scroll-behavior:auto;transition:none}}
+.nuevas .filters,.cov .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.nuevas input,.nuevas select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-2);color:var(--ink);min-width:0}
+.nuevas input[type=search]{flex:1 1 220px}
+.nuevas table,.cov table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;min-width:760px}
+.nuevas th,.nuevas td,.cov th,.cov td{text-align:left;vertical-align:top;padding:8px;border-bottom:1px solid var(--line)}
+.nuevas th,.cov th{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.nuevas .wrap{overflow-x:auto;max-height:70vh;overflow-y:auto}.cov .wrap{overflow-x:auto}.cov .links a{margin-right:8px;white-space:nowrap}
+.st{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.st.ok{background:var(--go-bg);color:var(--go-ink)}.st.err{background:var(--stop-bg);color:var(--stop-ink)}.st.man{background:var(--muted-bg);color:var(--ink-2)}
+.fine{font-size:12px;color:var(--dim);max-width:90ch;margin:0}
+footer{color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:16px;padding-bottom:28px}
+@media (max-width:900px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.step{border-bottom:1px solid var(--line)}
+.step:nth-child(2n){border-right:0}.detail{grid-template-columns:minmax(0,1fr);padding-left:18px}.side{max-width:none}}
+@media (max-width:760px){.cols{display:none}
+.row{grid-template-columns:48px minmax(0,1fr);gap:10px 12px;align-items:start}
+.tags{display:flex;flex-wrap:wrap;gap:6px;grid-column:2;align-items:center}
+.chev{display:none}.bar{width:36px}.kpi{flex:1 1 30%;min-width:0;padding:8px 12px}.kpi b{font-size:19px}}
+@media (max-width:560px){.flow{grid-template-columns:minmax(0,1fr)}.step{border-right:0}h1{font-size:22px}}
+@media print{.side,.icon-btn,.list-tools select,.more{display:none}.decide{display:block}.rowd>.detail{display:grid}.card{break-inside:avoid}}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
 """
+
 
 # Saving a CV: a plain download everywhere; inside a claude.ai Artifact (whose frame blocks
 # download links) through the downloads capability; an embedded data: PDF goes through a blob
@@ -928,36 +943,15 @@ JS = """
     var next=dark?'light':'dark';root.setAttribute('data-theme',next);put('pe_revision_theme',next);
   });
 
+  // The summary cards open the section they name.
+  document.querySelectorAll('[data-open]').forEach(function(a){
+    a.addEventListener('click',function(){var d=document.getElementById(a.dataset.open);if(d)d.open=true;});
+  });
+
   var track=document.getElementById('main');
   if(!track)return;
-  var soonTrack=document.getElementById('soon-track');
-  if(soonTrack){
-    var soonCards=Array.prototype.slice.call(soonTrack.querySelectorAll('.soon-card'));
-    var soonPrev=document.getElementById('soon-prev'),soonNext=document.getElementById('soon-next');
-    function soonStep(){return soonCards.length>1?soonCards[1].offsetLeft-soonCards[0].offsetLeft:soonTrack.clientWidth;}
-    function soonVisible(){return parseInt(getComputedStyle(soonTrack).getPropertyValue('--visible'),10)||1;}
-    function updateSoon(){
-      var overflow=soonTrack.scrollWidth>soonTrack.clientWidth+2;
-      soonPrev.hidden=soonNext.hidden=!overflow;
-      soonPrev.disabled=soonTrack.scrollLeft<2;
-      soonNext.disabled=soonTrack.scrollLeft>=soonTrack.scrollWidth-soonTrack.clientWidth-2;
-    }
-    function moveSoon(dir){
-      var step=soonStep(),max=Math.max(0,soonCards.length-soonVisible());
-      var index=Math.max(0,Math.min(max,Math.round(soonTrack.scrollLeft/step)+dir));
-      soonTrack.scrollTo({left:index*step,behavior:'smooth'});
-    }
-    soonPrev.addEventListener('click',function(){moveSoon(-1);});
-    soonNext.addEventListener('click',function(){moveSoon(1);});
-    soonTrack.addEventListener('scroll',updateSoon);
-    window.addEventListener('resize',updateSoon);
-    soonTrack.closest('details').addEventListener('toggle',updateSoon);
-    updateSoon();
-  }
   var cards=Array.prototype.slice.call(track.querySelectorAll('.card'));
-  var prev=document.getElementById('prev'),next=document.getElementById('next'),pos=document.getElementById('pos'),tot=document.getElementById('tot');
-  var ticks=document.getElementById('ticks'),empty=document.getElementById('empty');
-  var cur=0,view=get('pe_revision_view_v2','list');
+  var tot=document.getElementById('tot'),empty=document.getElementById('empty');
 
   // "Revisada": a per-browser convenience, never written back to the state files.
   var done=get('pe_revision_done',{});
@@ -966,81 +960,17 @@ JS = """
     var card=cb.closest('.card');cb.checked=!!done[cb.dataset.key];card.classList.toggle('is-done',cb.checked);
     cb.addEventListener('change',function(){
       done[cb.dataset.key]=cb.checked;put('pe_revision_done',done);card.classList.toggle('is-done',cb.checked);count();
-      if(fd.value){apply();return;}
-      drawTicks();
-      if(cb.checked&&view==='car'&&track.contains(card))setTimeout(function(){go(cur+1);},260);
+      if(fd.value)apply();
     });
   });
   count();
-
-  function visible(){return cards.filter(function(c){return !c.hidden;});}
-  function fit(){
-    if(view!=='car'){track.style.height='';return;}
-    var v=visible()[cur];track.style.height=v?(v.offsetHeight+4)+'px':'';
-  }
-  function mark(){
-    var v=visible(),n=v.length;
-    if(cur>n-1)cur=Math.max(0,n-1);
-    pos.textContent=n?cur+1:0;tot.textContent=n;
-    prev.disabled=cur<=0;next.disabled=cur>=n-1;
-    empty.hidden=n>0;
-    Array.prototype.forEach.call(ticks.children,function(t,i){t.classList.toggle('cur',i===cur&&view==='car');});
-    fit();
-  }
-  function go(i,instant){
-    var v=visible();if(!v.length){mark();return;}
-    cur=Math.max(0,Math.min(v.length-1,i));
-    if(view==='car'){
-      track.scrollTo({left:v[cur].offsetLeft-v[0].offsetLeft,behavior:instant?'auto':'smooth'});
-    }
-    mark();
-  }
-  function drawTicks(){
-    ticks.innerHTML='';
-    visible().forEach(function(c,i){
-      var t=document.createElement('button');t.type='button';
-      t.className='tick '+(c.dataset.tone||'')+(c.classList.contains('is-done')?' done':'');
-      t.title=(i+1)+' · '+c.dataset.label;t.setAttribute('aria-label','Ir a '+(i+1)+': '+c.dataset.label);
-      t.addEventListener('click',function(){if(view!=='car')setView('car');go(i);});
-      ticks.appendChild(t);
-    });
-    mark();
-  }
-  // Swiping or scrolling the track moves the counter.
-  var raf=0;
-  track.addEventListener('scroll',function(){
-    if(view!=='car')return;cancelAnimationFrame(raf);
-    raf=requestAnimationFrame(function(){
-      var v=visible(),x=track.scrollLeft,best=0,bd=1e9,base=v.length?v[0].offsetLeft:0;
-      v.forEach(function(c,i){var d=Math.abs(c.offsetLeft-base-x);if(d<bd){bd=d;best=i;}});
-      if(best!==cur){cur=best;mark();}
-    });
-  },{passive:true});
-  prev.addEventListener('click',function(){go(cur-1);});
-  next.addEventListener('click',function(){go(cur+1);});
-  document.addEventListener('keydown',function(e){
-    if(view!=='car'||e.altKey||e.ctrlKey||e.metaKey)return;
-    var tag=(e.target.tagName||'').toLowerCase();if(tag==='input'||tag==='select'||tag==='textarea')return;
-    if(e.key==='ArrowRight'){e.preventDefault();go(cur+1);}else if(e.key==='ArrowLeft'){e.preventDefault();go(cur-1);}
-  });
-  window.addEventListener('resize',function(){go(cur,true);});
-
-  function setView(v){
-    view=v;put('pe_revision_view_v2',v);
-    track.classList.toggle('list',v!=='car');
-    track.setAttribute('aria-roledescription',v==='car'?'carrusel':'lista');
-    document.querySelector('.bar').classList.toggle('list-mode',v!=='car');
-    document.querySelectorAll('.seg button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.view===v));});
-    [prev,next].forEach(function(b){b.hidden=v!=='car';});
-    go(cur,true);
-  }
-  document.querySelectorAll('.seg button').forEach(function(b){b.addEventListener('click',function(){setView(b.dataset.view);});});
 
   // Filters and order.
   var q=document.getElementById('q'),fa=document.getElementById('fa'),fm=document.getElementById('fm'),fr=document.getElementById('fr'),
       fz=document.getElementById('fz'),fc=document.getElementById('fc'),fd=document.getElementById('fd'),so=document.getElementById('so'),
       fx=document.getElementById('fx'),fdistrict=document.getElementById('f-district'),
       fsector=document.getElementById('f-sector'),fkind=document.getElementById('f-kind');
+  var controls=[q,fa,fm,fr,fz,fc,fd,fdistrict,fsector,fkind];
   // Abroad and not remote: shown only when the profile (or this browser's choice) accepts moving.
   fx.checked=get('pe_revision_abroad',false);
   fx.addEventListener('change',function(){put('pe_revision_abroad',fx.checked);apply();});
@@ -1048,7 +978,7 @@ JS = """
   function closeOk(b){var v=fc.value;if(!v)return true;if(v==='fecha')return b!=='sin';if(v==='sin')return b==='sin';return (WITHIN[v]||[]).indexOf(b)>=0;}
   function doneOk(c){var v=fd.value;if(!v)return true;var d=c.classList.contains('is-done');return v==='done'?d:!d;}
   function apply(){
-    var t=(q.value||'').toLowerCase();
+    var t=(q.value||'').toLowerCase(),shown=0;
     cards.forEach(function(c){
       var ok=(!t||c.dataset.text.indexOf(t)>=0)&&(!fa.value||c.dataset.action===fa.value)
         &&(!fm.value||c.dataset.modality===fm.value)&&(!fr.value||c.dataset.fresh===fr.value)
@@ -1058,10 +988,11 @@ JS = """
         &&(!fkind.value||c.dataset.kinds.split('|').indexOf(fkind.value)>=0)
         &&closeOk(c.dataset.close)&&doneOk(c)
         &&(fx.checked||c.dataset.excl!=='1');
-      c.hidden=!ok;
+      c.hidden=!ok;if(ok)shown++;
     });
+    tot.textContent=shown;empty.hidden=shown>0;
     document.querySelectorAll('[data-quick-mode]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.quickMode===fm.value));});
-    cur=0;drawTicks();go(0,true);
+    document.querySelectorAll('[data-quick-action]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.quickAction===fa.value));});
   }
   function sort(){
     var p=so.value.split(':'),key=p[0],sign=p[1]==='asc'?1:-1;
@@ -1071,31 +1002,31 @@ JS = """
       return c*sign||(parseFloat(b.getAttribute('data-s-encaje'))-parseFloat(a.getAttribute('data-s-encaje')));
     });
     cards.forEach(function(c){track.appendChild(c);});
-    cur=0;drawTicks();go(0,true);
   }
-  [q,fa,fm,fr,fz,fc,fd,fdistrict,fsector,fkind].forEach(function(el){el.addEventListener('input',apply);el.addEventListener('change',apply);});
+  controls.forEach(function(el){el.addEventListener('input',apply);el.addEventListener('change',apply);});
   document.querySelectorAll('[data-quick-mode]').forEach(function(b){b.addEventListener('click',function(){fm.value=b.dataset.quickMode;apply();});});
+  document.querySelectorAll('[data-quick-action]').forEach(function(b){b.addEventListener('click',function(){fa.value=b.dataset.quickAction;apply();});});
   document.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('button[data-set-filter]');if(!b)return;
-    var controls={district:fdistrict,sector:fsector,kind:fkind,zone:fz},select=controls[b.dataset.setFilter];
-    if(select){select.value=b.dataset.value;apply();document.getElementById('decidir').scrollIntoView({behavior:'smooth',block:'start'});}
+    var sel={district:fdistrict,sector:fsector,kind:fkind,zone:fz}[b.dataset.setFilter];
+    if(sel){sel.value=b.dataset.value;apply();document.getElementById('decidir').scrollIntoView({behavior:'smooth',block:'start'});}
   });
   so.addEventListener('change',sort);
 
-  // "Ver ficha" from the closing-soon list: clear what hides it, then show it.
+  // "Ver ficha" from this week's cards: clear what hides the posting, open it and bring it into view.
   document.querySelectorAll('[data-goto]').forEach(function(b){
     b.addEventListener('click',function(){
       var card=cards.filter(function(c){return c.dataset.key===b.dataset.goto;})[0];if(!card)return;
-      if(card.hidden){[q,fa,fm,fr,fz,fc,fd,fdistrict,fsector,fkind].forEach(function(el){el.value='';});apply();}
-      if(view==='car')go(visible().indexOf(card));
+      if(card.hidden){controls.forEach(function(el){el.value='';});apply();}
+      var d=card.querySelector('details');if(d)d.open=true;
       card.scrollIntoView({behavior:'smooth',block:'start'});
     });
   });
 
-  setView(view==='car'?'car':'list');apply();
-  if('ResizeObserver' in window)new ResizeObserver(function(){fit();}).observe(track);
+  apply();
 })();
 """
+
 
 
 def coverage_html(cov: dict | None) -> str:
@@ -1220,9 +1151,13 @@ def _sort_keys(r: dict) -> dict:
     }
 
 
+CHEVRON = ('<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">'
+           '<path d="M4 6l4 4 4-4"/></svg>')
+
+
 def card_html(r: dict, classes: dict[str, str]) -> str:
-    """One posting: what to do and why on top, the evidence below - fit on the left, how to
-    apply and what is known about the employer on the right."""
+    """One posting as a row that opens: what to do and how well it fits on the row; why it fits,
+    the gaps, the evidence and how to apply inside."""
     labels = {k: (label, css) for k, label, css in ACTIONS}
     label, css = labels[r["action"]]
     ctx = r.get("context") or {}
@@ -1238,18 +1173,18 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
     pct = score if isinstance(score, (int, float)) and 0 <= score <= 100 else 0
     fresh = r.get("fresh")
     level = freshness_of(fresh)
-    close_pill = (f'<span class="close {esc(closes["css"])}" title="Fecha de cierre que escribe la oferta">'
-                  f'Cierra: {esc(closes["label"])}</span>' if closes["bucket"] != "sin" else "")
-    fresh_pill = (f'<span class="fresh {FRESH_CSS.get(level, "")}" title="Frescura vacante">Frescura vacante: {esc(level)}</span>'
-                  if fresh else "")
+    age = (fresh or {}).get("age_days")
+    fresh_txt = level.capitalize() + (f" · {'≥' if (fresh or {}).get('age_is_minimum') else ''}{age} d" if isinstance(age, int) else "")
+    modality = r.get("modality") or "no declarado"
+    close_cell = (f'<span class="close {esc(closes["css"])}" title="Fecha de cierre que escribe la oferta">{esc(closes["label"])}</span>'
+                  if closes["bucket"] != "sin" else '<span class="nodate">Sin fecha</span>')
+    level_txt = r.get("level") if r.get("level") and r.get("level") != "no declarado" else ""
     how = f'<div class="how"><b>Cómo:</b> {esc(r["how_to_apply"])}</div>' if r.get("how_to_apply") else ""
     applied = (f'<div class="how"><b>Postulación registrada</b>'
                f'{" · " + esc(r.get("applied_date")) if r.get("applied_date") else ""}</div>'
                if r["action"] == "postulada" else "")
-    apply_blk = applied + cv_html(r) + how + contacts_html(r) + people_html(r)
-    apply_blk = (f'<div class="blk apply"><h4>{"Postulación" if applied else "Postular"}</h4>{apply_blk}</div>'
-                 if apply_blk.strip() else "")
     place = context_html(r.get("context"))
+    posting = link(r.get("url"), "Ver aviso original ↗") if re.match(r"^https?://", str(r.get("url") or "")) else ""
     return (
         f'<article class="card {css}" data-key="{esc(r["key"])}" data-tone="{css}" '
         f'data-label="{esc((r.get("title") or "") + " · " + (r.get("company") or ""))}" '
@@ -1257,28 +1192,53 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
         f'data-close="{esc(closes["bucket"])}" data-zones="{esc(zones)}" data-districts="{esc(districts)}" '
         f'data-sector="{esc(rb.get("label"))}" data-kinds="{esc(kinds)}" data-text="{esc(text)}" '
         f'data-excl="{"1" if r.get("abroad_excluded") else ""}" {sort_attrs}>'
-        f'<div class="card-top"><span class="badge {css}">{esc(label)}</span>{close_pill}{fresh_pill}'
-        f'<span class="grow"></span><label class="done-l"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> Revisada</label></div>'
-        f'<div class="card-head">{logo_html(r, classes)}<div><h3>{link(r.get("url"), r.get("title"))}</h3>'
-        f'<div class="co">{esc(r.get("company"))}</div><div class="meta">{meta_html(r)}</div>{also_html(r)}</div>'
-        f'<div class="score"><div class="ring" style="--p:{esc(pct)}" title="Encaje: puntaje de /rank sobre 100"><span><b>{esc(score if score is not None else "—")}</b>'
-        f'</span></div><div class="verdict">{esc(r.get("rank_verdict"))}</div></div></div>'
-        f'<div class="card-body"><div>'
-        f'<div class="blk strengths"><h4>Fortalezas</h4>{bullets(r.get("strengths"))}</div>'
-        f'<div class="blk gaps"><h4>Brechas</h4>{bullets(r.get("gaps"))}</div>'
-        f'<div class="blk"><h4>Frescura vacante</h4>{fresh_html(fresh)}</div></div>'
-        f'<div>{apply_blk}'
-        + (f'<div class="blk"><h4>Lugar y rubro</h4>{place}</div>' if place else "")
-        + f'<div class="blk rating"><h4>Reputación</h4>{rating_html(r.get("ratings"))}</div></div></div>'
-        "</article>"
+        f'<details class="rowd"><summary class="row">'
+        f'<span class="sc" title="Encaje: puntaje de /rank sobre 100 · {esc(r.get("rank_verdict"))}"><b>{esc(score if score is not None else "—")}</b>'
+        f'<span class="bar"><i style="width:{esc(pct)}%"></i></span></span>'
+        f'<span class="who">{logo_html(r, classes)}<span class="tt"><span class="t">{esc(r.get("title"))}</span>'
+        f'<span class="co">{esc(r.get("company"))}{" · " + esc(level_txt) if level_txt else ""}</span></span></span>'
+        f'<span class="tags"><span class="c-mod"><span class="pill mod-{MODALITY_CLASS.get(modality, "nd")}">{esc(modality.capitalize())}</span></span>'
+        f'<span class="c-close">{close_cell}</span>'
+        f'<span class="c-fresh" title="Frescura de la vacante"><i class="dot {FRESH_CSS.get(level, "")}"></i>{esc(fresh_txt)}</span>'
+        f'<span class="c-act"><span class="badge {css}">{esc(label)}</span></span></span>{CHEVRON}</summary>'
+        f'<div class="detail">'
+        f'<div><h4>Por qué calza</h4><div class="d-why">{bullets(r.get("strengths"))}</div>'
+        f'<h4>Brechas</h4><div class="d-gaps">{bullets(r.get("gaps"))}</div></div>'
+        f'<div><h4>Frescura de la vacante</h4>{fresh_html(fresh)}'
+        + (f'<h4>Lugar y rubro</h4>{place}' if place else "")
+        + f'<h4>Reputación</h4><div class="rating">{rating_html(r.get("ratings"))}</div></div>'
+        f'<div class="apply"><h4>{"Postulación" if applied else "Cómo postular"}</h4>{applied}{cv_html(r)}{how}'
+        f'{contacts_html(r)}{people_html(r)}<div class="meta">{meta_html(r)}</div>{also_html(r)}'
+        + (f'<div class="d-links">{posting}</div>' if posting else "")
+        + f'<label class="done-l"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> Revisada</label></div>'
+        "</div></details></article>"
+    )
+
+
+SOON_VISIBLE = 8  # closing-soon cards shown at once; the rest fold under "Ver N más"
+
+
+def soon_card(r: dict, classes: dict[str, str]) -> str:
+    has_cv = bool(r.get("cv_href"))
+    return (
+        f'<div class="soon-card{" urgent" if r["closes"]["bucket"] == "hoy" else ""}">'
+        f'<div class="row1"><span class="close {esc(r["closes"]["css"])}">{esc(r["closes"]["label"])}</span>'
+        f'<b class="num" title="Encaje">{esc(r.get("rank_score"))}</b></div>'
+        f'<div class="who">{logo_html(r, classes)}<div style="min-width:0"><div class="t">{esc(r.get("title"))}</div>'
+        f'<div class="co">{esc(r.get("company"))}</div></div></div>'
+        + (f'<div class="how"><b>Cómo:</b> {esc(r["how_to_apply"])}</div>' if r.get("how_to_apply") else "")
+        + f'<div class="cvst{" ok" if has_cv else ""}">{"CV a medida listo" if has_cv else "Sin CV a medida"}</div>'
+        f'<div class="acts">{cv_html(r).replace("cvrow", "cvrow-in")}'
+        f'<button type="button" class="link-btn" data-goto="{esc(r["key"])}">Ver ficha →</button></div></div>'
     )
 
 
 def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | None = None) -> str:
     classes = classes or {}
     sl = data["shortlist"]
-    ready = data["actions"]["ya"] + data["actions"]["pronto"]
-    confirm = data["actions"]["confirmar"] + data["actions"]["antes"]
+    acts = data["actions"]
+    ready = acts["ya"] + acts["pronto"]
+    confirm = acts["confirmar"] + acts["antes"]
     portals = " · ".join(f"{esc(p.replace('-search', ''))} {n}" for p, n in data["portals"].most_common())
     verdicts = " · ".join(f"{esc(v)} {n}" for v, n in data["verdicts"].most_common())
     order = list(pe_frescura.FRESHNESS_ORDER) + ["sin revisar"]
@@ -1289,13 +1249,18 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
         ("3 · Frescura vacante", len(sl), f"en lista corta · {freshness}", "pe_frescura"),
         ("4 · Reputación", data["rated"], f"de {len(sl)} con calificación", "company"),
         ("5 · Acción", ready, f"para postular · {confirm} por confirmar"
-         + (f" · {data['actions']['postulada']} postuladas" if data["actions"]["postulada"] else ""), "/apply"),
+         + (f" · {acts['postulada']} postuladas" if acts["postulada"] else ""), "/apply"),
     ]
     flow = "".join(
         f'<div class="step"><div class="n">{esc(n)} <span class="tag">{esc(cmd)}</span></div>'
         f'<div class="big">{esc(big)}</div><small>{sub}</small></div>'
         for n, big, sub, cmd in steps
     )
+    kpis = (f'<div class="kpi" title="vistas · {portals}"><b>{len(data["seen"])}</b><span>vistas</span></div>'
+            f'<div class="kpi" title="{verdicts}"><b>{len(data["ranked"])}</b><span>evaluadas</span></div>'
+            f'<div class="kpi go"><b>{ready}</b><span>para postular</span></div>'
+            f'<div class="kpi warn"><b>{confirm}</b><span>por confirmar</span></div>'
+            f'<div class="kpi"><b>{acts["postulada"]}</b><span>postuladas</span></div>')
 
     main_rows = [r for r in data["ranked"] if r["action"] not in ("descartar", "cerrada", "postulada")]
     applied_rows = [r for r in data["ranked"] if r["action"] == "postulada"]
@@ -1313,15 +1278,18 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     district_opts = "".join(f'<option value="{esc(d)}">{esc(d)}</option>' for d in district_set)
     sector_opts = "".join(f'<option value="{esc(s)}">{esc(s)}</option>' for s in sector_set)
     kind_opts = "".join(f'<option value="{esc(k)}">{esc(k)}</option>' for k in kind_set)
-    mode_buttons = "".join(f'<button type="button" data-quick-mode="{esc(m)}" aria-pressed="false" class="pill mod-{MODALITY_CLASS[m]}">{esc(m.capitalize())}</button>'
+    mode_buttons = "".join(f'<button type="button" data-quick-mode="{esc(m)}" aria-pressed="false">{esc(m.capitalize())}</button>'
                            for m in ("presencial", "híbrido", "remoto") if m in modalities)
-    action_opts = "".join(f'<option value="{k}">{esc(lbl)}</option>' for k, lbl, _ in ACTIONS if k not in ("descartar", "cerrada", "postulada"))
-    modality_opts = "".join(f'<option value="{esc(m)}">{esc(m)}</option>' for m in modalities)
+    by_action = Counter(r["action"] for r in main_rows)
+    action_buttons = (f'<button type="button" data-quick-action="" aria-pressed="true"><span>Todas</span><span>{len(main_rows)}</span></button>'
+                      + "".join(f'<button type="button" data-quick-action="{k}" aria-pressed="false"><span>{esc(lbl)}</span>'
+                                f'<span>{by_action[k]}</span></button>'
+                                for k, lbl, _ in ACTIONS if by_action[k]))
     sort_opts = "".join(
         f'<option value="{v}">{esc(lbl)}</option>'
-        for v, lbl in (("accion:asc", "Orden: acción más urgente"), ("encaje:desc", "Orden: mayor encaje"),
-                       ("cierre:asc", "Orden: cierra antes"), ("frescura:asc", "Orden: más reciente"),
-                       ("reputacion:desc", "Orden: mejor reputación"), ("puesto:asc", "Orden: puesto, A a Z"))
+        for v, lbl in (("accion:asc", "Acción más urgente"), ("encaje:desc", "Mayor encaje"),
+                       ("cierre:asc", "Cierra antes"), ("frescura:asc", "Más reciente"),
+                       ("reputacion:desc", "Mejor reputación"), ("puesto:asc", "Puesto, A a Z"))
     )
     unranked = "".join(
         f'<li>{esc(r.get("posted_date") or "?")} · {link(r.get("url"), r.get("title"))} · {esc(r.get("company"))}'
@@ -1330,24 +1298,15 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     )
     soon = sorted((r for r in main_rows if r["closes"]["bucket"] in ("hoy", "3d", "7d")),
                   key=lambda r: (r["closes"]["sort"], -(r.get("rank_score") or 0)))
-    urgent = ""
+    week = ""
     if soon:
-        items = "".join(
-            f'<div class="soon-card"><div class="row"><span class="close {esc(r["closes"]["css"])}">{esc(r["closes"]["label"])}</span>'
-            f'<b class="num">{esc(r.get("rank_score"))}</b></div>'
-            f'<div class="row">{logo_html(r, classes)}<div style="min-width:0"><div class="t">{link(r.get("url"), r.get("title"))}</div>'
-            f'<div class="co">{esc(r.get("company"))}</div></div></div>'
-            + (f'<div class="how"><b>Cómo:</b> {esc(r["how_to_apply"])}</div>' if r.get("how_to_apply") else "")
-            + f'<div class="row">{cv_html(r).replace("cvrow", "cvrow-in")}'
-            f'<button type="button" class="link-btn" data-goto="{esc(r["key"])}">Ver ficha →</button></div></div>'
-            for r in soon
-        )
-        urgent = (f'<details class="soon-details" open><summary>Cierran en los próximos 7 días '
-                  f'<span class="count-pill">{len(soon)}</span></summary>'
-                  f'<div class="soon-wrap"><button type="button" class="soon-nav" id="soon-prev" aria-label="Cierres anteriores">‹</button>'
-                  f'<div class="soon-track" id="soon-track" tabindex="0" aria-label="Ofertas que cierran en siete días">{items}</div>'
-                  f'<button type="button" class="soon-nav" id="soon-next" aria-label="Más cierres">›</button></div>'
-                  '<p class="note">Fecha de cierre que escribe la oferta, no el vencimiento del portal.</p></details>')
+        shown, rest = soon[:SOON_VISIBLE], soon[SOON_VISIBLE:]
+        more = (f'<details class="soon-more"><summary>Ver {len(rest)} más</summary>'
+                f'<div class="soon-grid">{"".join(soon_card(r, classes) for r in rest)}</div></details>' if rest else "")
+        week = (f'<section class="week" aria-labelledby="semana"><div class="h2-row">'
+                f'<h2 id="semana">Esta semana cierran {len(soon)}</h2>'
+                '<p class="note">Fecha de cierre que escribe la oferta, no el vencimiento del portal.</p></div>'
+                f'<div class="soon-grid">{"".join(soon_card(r, classes) for r in shown)}</div>{more}</section>')
     heading = esc(title) if title else "Revisión de ofertas"
     pref = data.get("abroad_pref") or {"mode": "no", "text": None}
     excluded = 0
@@ -1355,73 +1314,94 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
         r["abroad_excluded"] = abroad_excluded(r, pref["mode"])
         excluded += bool(r["abroad_excluded"] and r in main_rows)
     pref_html = (
-        f'<div class="pref"><span>Búsqueda en Lima, Perú · fuera del Perú: <b>{esc(ABROAD_LABEL[pref["mode"]])}</b> '
-        f'<span class="dim">· {esc(pref["text"]) if pref.get("text") else "el perfil no pide buscar en el extranjero"}'
+        f'<div class="pref"><span>Búsqueda en Lima, Perú · fuera del Perú: <b>{esc(ABROAD_LABEL[pref["mode"]])}</b>'
+        f' <span class="dim">· {esc(pref["text"]) if pref.get("text") else "el perfil no pide buscar en el extranjero"}'
         f' (línea <code>Abroad</code> de <code>CLAUDE.md</code>; cámbiala ahí o con <code>/setup</code>)</span></span>'
         f'<label class="done-l"><input type="checkbox" id="fx"> '
         f'Mostrar también las del extranjero que tu perfil deja fuera ({excluded})</label></div>'
     )
     coverage = coverage_html(data.get("cobertura"))
     nuevas = nuevas_html(data.get("nuevas"), data["seen"])
-    runs = [p for p in ((data.get("cobertura") or {}).get("portales") or [])
-            if isinstance(p, dict) and p.get("ok") and re.match(r"\d{4}-\d{2}-\d{2}", str(p.get("fecha") or ""))]
+    n_nuevas = nuevas.count("<tr data-text=")
+    cov_portals = [p for p in ((data.get("cobertura") or {}).get("portales") or []) if isinstance(p, dict)]
+    clis = [p for p in cov_portals if p.get("metodo") == "cli"]
+    clean = sum(1 for p in clis if p.get("consultas") and not p.get("fallidas"))
+    runs = [p for p in cov_portals if p.get("ok") and re.match(r"\d{4}-\d{2}-\d{2}", str(p.get("fecha") or ""))]
     latest = max((str(p["fecha"])[:10] for p in runs), default=None)
     run_label = (f'{date.fromisoformat(latest).strftime("%d/%m/%Y")} · '
                  + ", ".join(esc(p.get("nombre")) for p in runs if str(p["fecha"]).startswith(latest))
                  if latest else "sin búsquedas registradas")
+    more_cards = [("sec-postuladas", len(applied_rows), "Postuladas", "registradas en el estado"),
+                  ("sec-cerradas", len(closed_rows), "Cerradas", "su fecha de cierre ya pasó"),
+                  ("sec-descartadas", len(out_rows), "Descartadas", "no elegibles"),
+                  ("sec-sin-evaluar", len(data["unranked"]), "Sin evaluar", "vistas y relevantes")]
+    if nuevas:
+        more_cards.append(("sec-nuevas", n_nuevas, "Nuevas", "de la última búsqueda"))
+    more_cards.append(("sec-portales", len(cov_portals), "Portales",
+                       f"{clean} de {len(clis)} con búsqueda automática sin errores" if clis else "cobertura"))
+    more = "".join(f'<a href="#{sid}" data-open="{sid}"><b>{n}</b><strong>{esc(lbl)}</strong><span>{esc(note)}</span></a>'
+                   for sid, n, lbl, note in more_cards)
+    nuevas = nuevas.replace('<details class="nuevas">', '<details class="sec nuevas" id="sec-nuevas">', 1)
+    coverage = coverage.replace('<details class="cov">', '<details class="sec cov" id="sec-portales">', 1)
 
-    return f"""<header>
-<div class="topline"><div><div class="eyebrow">Revisión de ofertas · {esc(today.strftime('%d/%m/%Y'))}</div>
+    return f"""<header class="top"><div class="wrap-x">
+<div><div class="eyebrow">Revisión de ofertas · {esc(today.strftime('%d/%m/%Y'))}</div>
 <h1>{heading}</h1>
-<p class="run-date">Última búsqueda: <strong>{run_label}</strong></p>
-<p class="sub">Desde <code>seen_jobs.json</code>, la frescura y <code>company_research/</code>. El encaje es un triaje de
-<code>/rank</code>; <code>/apply</code> vuelve a evaluar antes de postular.</p></div>
+<p class="run-date">Última búsqueda: <strong>{run_label}</strong></p></div>
+<div class="top-right"><div class="kpis">{kpis}</div>
 <button type="button" class="icon-btn" id="theme" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">◐</button></div>
-<div class="flow">{flow}</div></header>
-<main>
-{urgent}
-<h2 id="decidir">Para decidir ({len(main_rows)})</h2>
-<div class="toolbar">
-<div class="filters"><input id="q" type="search" placeholder="Buscar puesto, empresa, distrito…" aria-label="Buscar">
-<select id="so" aria-label="Orden">{sort_opts}</select>
-<select id="fa" aria-label="Acción"><option value="">Toda acción</option>{action_opts}</select>
-<select id="fm" aria-label="Modalidad"><option value="">Toda modalidad</option>{modality_opts}</select>
-<select id="fr" aria-label="Frescura vacante"><option value="">Toda frescura vacante</option><option value="muy alta">muy alta</option><option value="alta">alta</option><option value="media">media</option><option value="baja">baja</option></select>
-<select id="fz" aria-label="Zona"><option value="">Toda zona</option>{zone_opts}</select>
-<select id="fc" aria-label="Cierre"><option value="">Todo cierre</option><option value="hoy">Cierra hoy</option><option value="3d">Hasta 3 días</option><option value="7d">Esta semana</option><option value="fecha">Con fecha de cierre</option><option value="sin">Sin fecha</option></select>
-<select id="fd" aria-label="Revisadas"><option value="">Revisadas y pendientes</option><option value="pend">Solo pendientes</option><option value="done">Solo revisadas</option></select></div>
-<div class="quick" aria-label="Filtros rápidos"><span>Modalidad:</span><button type="button" data-quick-mode="" aria-pressed="true" class="pill">Todas</button>{mode_buttons}
-<select id="f-district" aria-label="Distrito"><option value="">Todos los distritos</option>{district_opts}</select>
-<select id="f-sector" aria-label="Rubro"><option value="">Todos los rubros</option>{sector_opts}</select>
-<select id="f-kind" aria-label="Tipo de empresa"><option value="">Todo tipo de empresa</option>{kind_opts}</select></div>
-<div class="legend">
-<span>Confianza del dato: <span class="dots conf-alta">●●●</span> alta · <span class="dots conf-media">●●○</span> media · <span class="dots conf-baja">●○○</span> baja</span>
-<span>En carrusel: teclas ← → o desliza para pasar de oferta.</span></div>{pref_html}</div>
-<div class="bar"><button type="button" class="nav" id="prev" aria-label="Oferta anterior">‹</button>
-<div class="pos" aria-live="polite"><b id="pos">1</b> / <span id="tot">{len(main_rows)}</span></div>
-<button type="button" class="nav" id="next" aria-label="Oferta siguiente">›</button>
-<div class="ticks" id="ticks" aria-label="Todas las ofertas, en orden"></div>
-<span class="progress">Revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}</span>
-<div class="seg" role="group" aria-label="Vista"><button type="button" data-view="car" aria-pressed="true">Carrusel</button><button type="button" data-view="list" aria-pressed="false">Lista</button></div></div>
-<div class="track list" id="main" tabindex="0" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
+</div></header>
+<main class="wrap-x">
+{week}
+<section class="decide" aria-label="Ofertas para decidir">
+<aside class="side" aria-label="Filtros">
+<div class="fl"><label for="q">Buscar</label><input id="q" type="search" placeholder="Puesto, empresa, distrito"></div>
+<div class="fl"><span class="lb" id="lb-acc">Acción</span><input type="hidden" id="fa" value="">
+<div class="acts-list" role="group" aria-labelledby="lb-acc">{action_buttons}</div></div>
+<div class="fl"><span class="lb" id="lb-mod">Modalidad</span><input type="hidden" id="fm" value="">
+<div class="quick" role="group" aria-labelledby="lb-mod"><button type="button" data-quick-mode="" aria-pressed="true">Todas</button>{mode_buttons}</div></div>
+<div class="fl"><label for="fc">Cierre</label><select id="fc"><option value="">Cualquier fecha</option><option value="hoy">Cierra hoy</option><option value="3d">Hasta 3 días</option><option value="7d">Esta semana</option><option value="fecha">Con fecha de cierre</option><option value="sin">Sin fecha</option></select></div>
+<div class="fl"><label for="fr">Frescura de la vacante</label><select id="fr"><option value="">Toda</option><option value="muy alta">Muy alta</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></div>
+<div class="fl"><label for="fz">Zona</label><select id="fz"><option value="">Toda zona</option>{zone_opts}</select></div>
+<div class="fl"><label for="f-district">Distrito</label><select id="f-district"><option value="">Todos los distritos</option>{district_opts}</select></div>
+<div class="fl"><label for="f-sector">Rubro</label><select id="f-sector"><option value="">Todos los rubros</option>{sector_opts}</select></div>
+<div class="fl"><label for="f-kind">Tipo de empresa</label><select id="f-kind"><option value="">Todo tipo de empresa</option>{kind_opts}</select></div>
+<div class="fl"><label for="fd">Revisadas</label><select id="fd"><option value="">Revisadas y pendientes</option><option value="pend">Solo pendientes</option><option value="done">Solo revisadas</option></select></div>
+<div class="legend"><span>Confianza del dato: <span class="dots conf-alta">●●●</span> alta · <span class="dots conf-media">●●○</span> media · <span class="dots conf-baja">●○○</span> baja</span>
+{pref_html}</div>
+</aside>
+<div class="listcol">
+<div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
+<div class="list-tools"><span class="progress">Revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}</span>
+<label>Orden <select id="so">{sort_opts}</select></label></div></div>
+<div class="cols" aria-hidden="true"><span>Encaje</span><span>Oferta</span><span>Modalidad</span><span>Cierre</span><span>Frescura</span><span>Acción</span><span></span></div>
+<div class="track list" id="main" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
 <div class="empty" id="empty" hidden>Ninguna oferta con estos filtros.</div>
-<details><summary>Postuladas ({len(applied_rows)})</summary>
+<p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular.</p>
+</div>
+</section>
+<nav class="more" aria-label="Más secciones">{more}</nav>
+<details class="sec" id="sec-postuladas"><summary>Postuladas ({len(applied_rows)})</summary>
 <div class="track list">{"".join(card_html(r, classes) for r in applied_rows)}</div></details>
-<details><summary>Cerradas: su fecha de cierre ya pasó ({len(closed_rows)})</summary>
+<details class="sec" id="sec-cerradas"><summary>Cerradas: su fecha de cierre ya pasó ({len(closed_rows)})</summary>
 <div class="track list">{"".join(card_html(r, classes) for r in closed_rows)}</div></details>
-<details><summary>Descartadas o no elegibles ({len(out_rows)})</summary>
+<details class="sec" id="sec-descartadas"><summary>Descartadas o no elegibles ({len(out_rows)})</summary>
 <div class="track list">{"".join(card_html(r, classes) for r in out_rows)}</div></details>
-<details><summary>Vistas y relevantes, sin evaluar ({len(data["unranked"])})</summary><ul class="unranked">{unranked}</ul></details>
+<details class="sec" id="sec-sin-evaluar"><summary>Vistas y relevantes, sin evaluar ({len(data["unranked"])})</summary><ul class="unranked">{unranked}</ul></details>
 {nuevas}
 {coverage}
-<p class="fine">Frescura vacante: edad desde la publicación original; "≥" es un mínimo (Computrabajo reinicia la fecha al republicar);
+<details class="flowd"><summary>Cómo se llegó aquí: búsqueda, encaje, frescura, reputación y acción</summary><div class="flow">{flow}</div>
+<p class="fine" style="margin-top:8px">Desde <code>seen_jobs.json</code>, la frescura y <code>company_research/</code>. El encaje es un triaje de
+<code>/rank</code>; <code>/apply</code> vuelve a evaluar antes de postular.</p></details>
+<p class="fine">Frescura de la vacante: edad desde la publicación original; "≥" es un mínimo (Computrabajo reinicia la fecha al republicar);
 el vencimiento del portal no es una fecha de cierre (<code>10-peru-market.md</code>, sección 10).
 Reputación: cada calificación con su n, área y fecha; con menos de {SMALL_N} opiniones es referencial y una certificación pagada no es independiente (sección 11).
 "Revisada" se guarda solo en este navegador.</p>
 </main>
-<footer>Generado por <code>tools/pe_revision.py</code> · ai-job-search-pe · {esc(today.isoformat())}</footer>
+<footer class="wrap-x">Un solo archivo, sin conexión: se abre con doble clic o en el teléfono. Generado por <code>tools/pe_revision.py</code> · {esc(today.isoformat())}</footer>
 <script>{JS}{CV_JS}{NUEVAS_JS}</script>
 """
+
 
 
 def export(data: dict, today: date, title: str | None) -> dict:

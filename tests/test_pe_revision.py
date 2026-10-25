@@ -245,10 +245,9 @@ class Deadlines(unittest.TestCase):
         seen = {"a": ranked(deadline="2026-10-20", how_to_apply="Formulario del BCRP"), "b": ranked(title="Otra", url=None)}
         data = pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp()), today=self.TODAY)
         page = pr.render(data, self.TODAY, None)
-        self.assertIn('Cierran en los próximos 7 días <span class="count-pill">1</span>', page)
-        self.assertIn('<details class="soon-details" open>', page)
-        self.assertIn('id="soon-track"', page)
-        self.assertIn('id="soon-next"', page)
+        self.assertIn('Esta semana cierran 1</h2>', page)
+        self.assertIn('<div class="soon-card urgent">', page)
+        self.assertNotIn('class="soon-more"', page)  # one card: nothing to fold
         self.assertIn('<span class="close today">HOY</span>', page)
         self.assertIn("Formulario del BCRP", page)
         self.assertIn('id="fc"', page)
@@ -364,14 +363,26 @@ class Duplicates(unittest.TestCase):
 
 
 class Carousel(unittest.TestCase):
-    def test_postings_to_decide_default_to_a_list_with_an_optional_carousel(self):
+    def test_postings_to_decide_are_rows_that_open_beside_the_filters(self):
         seen = {"a": ranked(), "b": ranked(title="Otra", url="https://www.linkedin.com/jobs/view/4476949303")}
         page = pr.render(pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp())), date(2026, 10, 18), None)
         self.assertIn('<div class="track list" id="main"', page)
         self.assertEqual(page.count('<article class="card'), 2)
-        for needle in ('id="prev"', 'id="next"', 'id="ticks"', 'data-view="car"', 'data-view="list"', "ArrowRight"):
+        self.assertEqual(page.count('<details class="rowd"><summary class="row">'), 2)
+        for needle in ('<aside class="side"', 'data-quick-action="pronto"', 'id="tot"', 'data-open="sec-postuladas"',
+                       "Por qué calza", "Ver aviso original"):
             self.assertIn(needle, page)
-        self.assertIn("get('pe_revision_view_v2','list')", page)
+        for gone in ('id="prev"', 'data-view="car"', "ArrowRight"):
+            self.assertNotIn(gone, page)
+
+    def test_more_than_eight_closing_soon_fold_the_rest(self):
+        today = date(2026, 10, 20)
+        seen = {f"k{i}": ranked(title=f"Oferta {i}", deadline="2026-10-22", url=f"https://www.linkedin.com/jobs/view/44769493{i:02d}")
+                for i in range(10)}
+        page = pr.render(pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp()), today=today), today, None)
+        self.assertIn("Esta semana cierran 10</h2>", page)
+        self.assertIn('<details class="soon-more"><summary>Ver 2 más</summary>', page)
+        self.assertEqual(page.count('class="soon-card'), 10)
 
     def test_a_logo_shared_by_several_postings_is_embedded_once(self):
         uri = "data:image/png;base64,iVBORw0KGgo="
