@@ -36,17 +36,29 @@ PROFILES_DIR = "perfiles"
 BRANCH_PREFIX = "perfil/"
 HOOK_MARKER = "ai-job-search perfiles: pre-push guard"
 HOOK = f"""#!/bin/sh
-# {HOOK_MARKER}
+# {HOOK_MARKER} (v2)
 # Installed by tools/perfiles.py. Profile branches hold personal data (CV, contact
-# details, salary expectations) and must never reach a remote.
-while read local_ref local_sha remote_ref remote_sha; do
+# details, salary expectations) and must never reach a remote; and no other branch may
+# carry a profile's identity either (tools/privacy_guard.py checks the outgoing commits).
+lines=$(cat)
+echo "$lines" | while read local_ref local_sha remote_ref remote_sha; do
   case "$local_ref" in
     refs/heads/{BRANCH_PREFIX}*)
       echo "pre-push: $local_ref es un perfil personal y no se sube a ningún remoto." >&2
       exit 1
       ;;
   esac
-done
+done || exit 1
+guard="$(git rev-parse --show-toplevel)/tools/privacy_guard.py"
+if [ -f "$guard" ]; then
+  # python3 first; on Windows it may be the Store stub, which fails the probe, so python next.
+  for py in python3 python; do
+    if command -v "$py" >/dev/null 2>&1 && "$py" -c "import sys" >/dev/null 2>&1; then
+      echo "$lines" | "$py" "$guard" --pre-push || exit 1
+      break
+    fi
+  done
+fi
 exit 0
 """
 PLACEHOLDER = "[YOUR_NAME]"
@@ -125,8 +137,12 @@ def ensure_hook(root: Path) -> str:
     hooks.mkdir(parents=True, exist_ok=True)
     hook = hooks / "pre-push"
     if hook.exists():
-        if HOOK_MARKER in hook.read_text(encoding="utf-8", errors="replace"):
+        current = hook.read_text(encoding="utf-8", errors="replace")
+        if current == HOOK:
             return "hook pre-push ya instalado"
+        if HOOK_MARKER in current:  # ours, from an earlier version: bring it up to date
+            hook.write_text(HOOK, encoding="utf-8", newline="\n")
+            return "hook pre-push actualizado (bloquea ramas perfil/* y datos de perfiles en otros commits)"
         return (f"AVISO: ya existe {hook} y no es de esta herramienta; no se tocó. Agrega a mano el bloqueo "
                 f"de ramas {BRANCH_PREFIX}* o no hagas push de esas ramas.")
     hook.write_text(HOOK, encoding="utf-8", newline="\n")
@@ -134,7 +150,7 @@ def ensure_hook(root: Path) -> str:
         hook.chmod(0o755)
     except OSError:
         pass
-    return "hook pre-push instalado (bloquea push de ramas perfil/*)"
+    return "hook pre-push instalado (bloquea ramas perfil/* y datos de perfiles en otros commits)"
 
 
 def is_configured(path: Path) -> bool:
@@ -228,7 +244,7 @@ def cmd_actualizar(root: Path, args) -> dict:
                             "detalle": f"resuelve los conflictos en {path} (git status) y haz commit; o 'git merge --abort' para deshacer"})
             continue
         results.append({"perfil": name, "estado": "actualizado", "detalle": merge.stdout.strip().splitlines()[-1] if merge.stdout.strip() else ""})
-    return {"base": args.base, "resultados": results}
+    return {"base": args.base, "resultados": results, "hook": ensure_hook(root)}
 
 
 def cmd_borrar(root: Path, args) -> dict:

@@ -1,2 +1,4 @@
-requests>=2.31,<3
-beautifulsoup4>=4.12,<5
+# Exact pins, like the rest of the repo's Python dependencies: a new release reaches the
+# scrapers only after someone reads it and bumps the line (Dependabot proposes the bumps).
+requests==2.34.2
+beautifulsoup4==4.14.3

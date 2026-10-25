@@ -1,0 +1,15 @@
+# Dependabot proposes updates as pull requests; nothing merges on its own. Each PR runs the
+# CI (tests on Linux and Windows, security guards), and a human reads it before merging -
+# the same posture as the pinned versions it updates.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /tools
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

@@ -107,6 +107,7 @@ automatically from your Languages table above - don't duplicate them here. -->
 - `tools/pe_duplicados.py` - the same posting published on several portals (or by an intermediary such as Universia): description containment plus the role words of the title; `--write` records `duplicate_of` and the review page shows it once, with "También en"
 - `tools/pe_logos.py` - employer logos for the review page, from the postings (`companyLogo` in the portal CLIs) or MyWorkIn, cached as small PNGs in `company_research/logos/`
 - `tools/perfiles.py` / `perfiles/<nombre>/` - one workspace per person (`/setup --user <nombre>`): a git worktree on a local `perfil/<nombre>` branch that a pre-push hook never lets reach a remote; open an AI coding agent inside it to work on that person's search
+- `tools/privacy_guard.py` - run by the same pre-push hook on every other push: stops it when an outgoing commit carries a local profile's name, e-mail, phone, LinkedIn or site (read from the gitignored profile CLAUDE.md files, never printed)
 
 ## Workflow for New Job Applications
 1. User provides a job posting (URL or text)

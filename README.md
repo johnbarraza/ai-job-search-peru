@@ -183,6 +183,13 @@ cualquier rama `perfil/*`, aunque alguien haga `git push --all`. Como tu fork es
 conviene que tu búsqueda real también viva en un perfil (`/setup --user <tu-nombre>`) y que
 la raíz del repo quede como plantilla.
 
+El mismo hook revisa además cada push de cualquier otra rama con `tools/privacy_guard.py`.
+Busca en los commits que salen el nombre, los correos, el teléfono, el LinkedIn y el sitio
+de cada perfil, y si encuentra alguno detiene el push. Esos datos los lee de los
+`CLAUDE.md` locales, que nunca se suben; el aviso solo dice en qué archivo y qué tipo de
+dato encontró, nunca el dato. `python tools/perfiles.py actualizar <nombre>` instala o pone
+al día el hook. Para un push que ya revisaste a mano: `AI_JOB_SEARCH_SKIP_PRIVACY=1 git push`.
+
 ## Programas de extensión
 
 Becas de formación de reguladores, del BCRP y de la SMV (enero a marzo, con examen) que suelen abrir prácticas en la entidad. Sus ventanas de inscripción son fijas (septiembre a noviembre) y no aparecen en los portales de empleo, así que viven en un registro aparte, `data/peru/programas_extension.json`. Cada entrada tiene su fuente, su estado (`abierta`, `por_confirmar`, `cerrada`) y su fecha de verificación. `python tools/pe_programas.py` lista las abiertas por fecha de cierre (🔥 a 7 días o menos), y `/scrape` las muestra en su propia tabla y re-verifica la página oficial de las que cierran pronto. Una fecha que solo aparece en una fuente secundaria queda **por confirmar** y nunca se presenta como hecho.
