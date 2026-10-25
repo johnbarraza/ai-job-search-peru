@@ -187,7 +187,7 @@ class ContextAndSorting(unittest.TestCase):
         page = pr.render(data, date(2026, 10, 24), None)
         for term in ('Última búsqueda: <strong>24/10/2026 · Prácticas.pe', 'id="f-district"',
                      'value="Santiago de Surco"', 'id="f-sector"', 'value="Consultora de Recursos Humanos"',
-                     'id="f-kind"', 'value="Recluta para un cliente"', 'data-quick-mode="híbrido"',
+                     'id="f-kind"', 'value="Recluta para un cliente"', 'class="fmod" value="híbrido"',
                      'data-districts="Santiago de Surco"', 'data-sector="Consultora de Recursos Humanos"',
                      'data-kinds="Recluta para un cliente"'):
             self.assertIn(term, page)
@@ -246,7 +246,7 @@ class Deadlines(unittest.TestCase):
         data = pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp()), today=self.TODAY)
         page = pr.render(data, self.TODAY, None)
         self.assertIn('Esta semana cierran 1</h2>', page)
-        self.assertIn('<div class="soon-card urgent">', page)
+        self.assertIn('<button type="button" class="soon-card urgent" data-goto="a"', page)
         self.assertNotIn('class="soon-more"', page)  # one card: nothing to fold
         self.assertIn('<span class="close today">HOY</span>', page)
         self.assertIn("Formulario del BCRP", page)

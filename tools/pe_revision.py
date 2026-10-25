@@ -724,7 +724,7 @@ code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--m
 .top .wrap-x{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-top:22px;padding-bottom:18px}
 .eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 h1{font-size:28px;line-height:1.15;letter-spacing:-.01em;margin-top:4px}
-.run-date{margin:6px 0 0;color:var(--dim);font-size:13px}.run-date strong{color:var(--ink);font-weight:600}
+.run-date{margin:6px 0 0;color:var(--dim);font-size:13px}.run-date strong{color:var(--dim);font-weight:400}
 .top-right{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .kpis{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
 .kpi{padding:10px 18px;border-right:1px solid var(--line);min-width:96px}.kpi:last-child{border-right:0}
@@ -748,9 +748,9 @@ h2{font-size:18px;line-height:1.3}
 .tag{font-size:10.5px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--dim);font-weight:500;text-transform:none;letter-spacing:0}
 /* this week */
 .week{display:flex;flex-direction:column;gap:12px}
-.soon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:12px}
-.soon-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0}
-.soon-card.urgent{border-color:var(--warn)}
+.soon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr));gap:12px}
+.soon-card{all:unset;box-sizing:border-box;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0;min-height:132px;font-size:14px;line-height:1.5;color:var(--ink)}
+.soon-card:hover{border-color:var(--accent)}.soon-card.urgent{border-color:var(--warn)}
 .soon-card .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .soon-card .row1 b{font-size:15px}
 .soon-card .t{font-weight:600;line-height:1.3}.soon-card .co{color:var(--dim);font-size:12.5px}
@@ -763,7 +763,7 @@ h2{font-size:18px;line-height:1.3}
 .link-btn{all:unset;cursor:pointer;color:var(--accent);font-size:13px;font-weight:600;min-height:32px;display:inline-flex;align-items:center}.link-btn:hover{text-decoration:underline}
 /* decide: filters beside the list */
 .decide{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
-.side{flex:1 1 240px;max-width:280px;display:flex;flex-direction:column;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.side{flex:1 1 240px;max-width:260px;display:flex;flex-direction:column;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
 .side .fl{display:flex;flex-direction:column;gap:6px}
 .side .fl>label,.side .fl>.lb{font-size:12px;font-weight:600;color:var(--ink-2)}
 .side input[type=search],.side select{font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface-2);color:var(--ink);min-height:44px;width:100%;min-width:0}
@@ -774,7 +774,13 @@ h2{font-size:18px;line-height:1.3}
 .quick{display:flex;flex-wrap:wrap;gap:6px}
 .quick button{font:inherit;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:6px 12px;min-height:36px;font-size:13px;font-weight:600}
 .quick button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
-.legend{font-size:12px;color:var(--dim);border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:6px}
+.side fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+.side legend{font-size:12px;font-weight:600;color:var(--ink-2);padding:0;margin-bottom:6px}
+.chk{display:flex;align-items:center;gap:8px;min-height:32px;font-size:14px;color:var(--ink);cursor:pointer}
+.chk input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
+.morefl{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 0 0;margin:0;display:block}
+.morefl>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)}.morefl .fl{margin-top:12px}
+.legend{font-size:12px;color:var(--dim);display:flex;flex-direction:column;gap:6px;margin-top:12px}
 .pref{font-size:12px;color:var(--dim);display:flex;flex-direction:column;gap:8px}
 .pref b{color:var(--ink)}.pref span{overflow-wrap:anywhere}
 .listcol{flex:999 1 640px;min-width:0;display:flex;flex-direction:column;gap:10px}
@@ -784,7 +790,7 @@ h2{font-size:18px;line-height:1.3}
 .list-tools select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink);min-height:40px}
 .progress b{color:var(--ink)}
 .cols{display:grid;grid-template-columns:var(--cols);gap:14px;padding:0 18px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
-:root{--cols:64px minmax(0,1fr) 112px 132px 132px 140px 20px}
+:root{--cols:64px minmax(0,1fr) 112px 128px 120px 140px 32px}
 .track{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .empty{padding:36px 16px;text-align:center;color:var(--dim);background:var(--surface);border:1px dashed var(--line);border-radius:14px}
 /* one posting: a row that opens */
@@ -802,17 +808,22 @@ h2{font-size:18px;line-height:1.3}
 .tt{display:flex;flex-direction:column;min-width:0}
 .tt .t{font-weight:600;line-height:1.3;color:var(--ink)}.tt .co{font-size:13px;color:var(--dim)}
 .tags{display:contents}
+.c-mod{font-size:13px;color:var(--ink-2)}
 .c-fresh{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
 .dot{flex:none;width:8px;height:8px;border-radius:4px;background:var(--faint)}
 .dot.f4,.dot.f3{background:var(--go)}.dot.f2{background:var(--warn)}.dot.f1{background:var(--faint)}
 .chev{display:block;justify-self:end;width:16px;height:16px;overflow:visible;transform-origin:50% 50%;transition:transform .15s;color:var(--dim)}.rowd[open] .chev{transform:rotate(180deg)}
 .nodate{font-size:13px;color:var(--dim)}
-.detail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:6px 18px 22px 96px;background:var(--row-open)}
+.detail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:4px 18px 22px 96px}
 .detail h4{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
 .detail h4:not(:first-child){margin-top:16px}
 .detail ul{margin:0;padding-left:18px}.detail li{margin:0 0 6px}
-.d-why li::marker{color:var(--go)}.d-gaps li::marker{color:var(--warn)}
-.apply{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;align-self:start}
+.d-why ul,.d-gaps ul{list-style:none;padding:0}.d-why li,.d-gaps li{position:relative;padding-left:14px}
+.d-why li::before,.d-gaps li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;border-radius:3px;background:var(--go)}
+.d-gaps li::before{background:var(--warn)}
+.d-more{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;border-top:1px solid var(--line);padding-top:14px;font-size:13px}
+.d-more h4{margin-bottom:6px}
+.apply{display:flex;flex-direction:column;gap:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:14px;align-self:start}
 .apply h4{margin:0}
 .d-links{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
 .logo{flex:none;width:36px;height:36px;border-radius:9px;object-fit:contain;background:#fff center/contain no-repeat;border:1px solid var(--line)}
@@ -886,7 +897,7 @@ details.sec .track{margin-top:12px}
 .fine{font-size:12px;color:var(--dim);max-width:90ch;margin:0}
 footer{color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:16px;padding-bottom:28px}
 @media (max-width:900px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.step{border-bottom:1px solid var(--line)}
-.step:nth-child(2n){border-right:0}.detail{grid-template-columns:minmax(0,1fr);padding-left:18px}.side{max-width:none}}
+.step:nth-child(2n){border-right:0}.detail,.d-more{grid-template-columns:minmax(0,1fr)}.detail{padding-left:18px}.side{max-width:none}}
 @media (max-width:760px){.cols{display:none}
 .row{grid-template-columns:48px minmax(0,1fr);gap:10px 12px;align-items:start}
 .tags{display:flex;flex-wrap:wrap;gap:6px;grid-column:2;align-items:center}
@@ -966,11 +977,16 @@ JS = """
   count();
 
   // Filters and order.
-  var q=document.getElementById('q'),fa=document.getElementById('fa'),fm=document.getElementById('fm'),fr=document.getElementById('fr'),
+  var q=document.getElementById('q'),fa=document.getElementById('fa'),fr=document.getElementById('fr'),
+      mods=Array.prototype.slice.call(document.querySelectorAll('input.fmod')),
       fz=document.getElementById('fz'),fc=document.getElementById('fc'),fd=document.getElementById('fd'),so=document.getElementById('so'),
       fx=document.getElementById('fx'),fdistrict=document.getElementById('f-district'),
       fsector=document.getElementById('f-sector'),fkind=document.getElementById('f-kind');
-  var controls=[q,fa,fm,fr,fz,fc,fd,fdistrict,fsector,fkind];
+  var controls=[q,fa,fr,fz,fc,fd,fdistrict,fsector,fkind];
+  function modOk(c){
+    var on=mods.filter(function(m){return m.checked;}).map(function(m){return m.value;});
+    return on.length===mods.length||on.indexOf(c.dataset.modality||'no declarado')>=0;
+  }
   // Abroad and not remote: shown only when the profile (or this browser's choice) accepts moving.
   fx.checked=get('pe_revision_abroad',false);
   fx.addEventListener('change',function(){put('pe_revision_abroad',fx.checked);apply();});
@@ -981,7 +997,7 @@ JS = """
     var t=(q.value||'').toLowerCase(),shown=0;
     cards.forEach(function(c){
       var ok=(!t||c.dataset.text.indexOf(t)>=0)&&(!fa.value||c.dataset.action===fa.value)
-        &&(!fm.value||c.dataset.modality===fm.value)&&(!fr.value||c.dataset.fresh===fr.value)
+        &&modOk(c)&&(!fr.value||c.dataset.fresh===fr.value)
         &&(!fz.value||c.dataset.zones.split('|').indexOf(fz.value)>=0)
         &&(!fdistrict.value||c.dataset.districts.split('|').indexOf(fdistrict.value)>=0)
         &&(!fsector.value||c.dataset.sector===fsector.value)
@@ -991,7 +1007,6 @@ JS = """
       c.hidden=!ok;if(ok)shown++;
     });
     tot.textContent=shown;empty.hidden=shown>0;
-    document.querySelectorAll('[data-quick-mode]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.quickMode===fm.value));});
     document.querySelectorAll('[data-quick-action]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.quickAction===fa.value));});
   }
   function sort(){
@@ -1004,7 +1019,7 @@ JS = """
     cards.forEach(function(c){track.appendChild(c);});
   }
   controls.forEach(function(el){el.addEventListener('input',apply);el.addEventListener('change',apply);});
-  document.querySelectorAll('[data-quick-mode]').forEach(function(b){b.addEventListener('click',function(){fm.value=b.dataset.quickMode;apply();});});
+  mods.forEach(function(m){m.addEventListener('change',apply);});
   document.querySelectorAll('[data-quick-action]').forEach(function(b){b.addEventListener('click',function(){fa.value=b.dataset.quickAction;apply();});});
   document.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('button[data-set-filter]');if(!b)return;
@@ -1017,7 +1032,7 @@ JS = """
   document.querySelectorAll('[data-goto]').forEach(function(b){
     b.addEventListener('click',function(){
       var card=cards.filter(function(c){return c.dataset.key===b.dataset.goto;})[0];if(!card)return;
-      if(card.hidden){controls.forEach(function(el){el.value='';});apply();}
+      if(card.hidden){controls.forEach(function(el){el.value='';});mods.forEach(function(m){m.checked=true;});apply();}
       var d=card.querySelector('details');if(d)d.open=true;
       card.scrollIntoView({behavior:'smooth',block:'start'});
     });
@@ -1197,20 +1212,20 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
         f'<span class="bar"><i style="width:{esc(pct)}%"></i></span></span>'
         f'<span class="who">{logo_html(r, classes)}<span class="tt"><span class="t">{esc(r.get("title"))}</span>'
         f'<span class="co">{esc(r.get("company"))}{" · " + esc(level_txt) if level_txt else ""}</span></span></span>'
-        f'<span class="tags"><span class="c-mod"><span class="pill mod-{MODALITY_CLASS.get(modality, "nd")}">{esc(modality.capitalize())}</span></span>'
+        f'<span class="tags"><span class="c-mod">{esc(modality.capitalize())}</span>'
         f'<span class="c-close">{close_cell}</span>'
         f'<span class="c-fresh" title="Frescura de la vacante"><i class="dot {FRESH_CSS.get(level, "")}"></i>{esc(fresh_txt)}</span>'
         f'<span class="c-act"><span class="badge {css}">{esc(label)}</span></span></span>{CHEVRON}</summary>'
         f'<div class="detail">'
-        f'<div><h4>Por qué calza</h4><div class="d-why">{bullets(r.get("strengths"))}</div>'
-        f'<h4>Brechas</h4><div class="d-gaps">{bullets(r.get("gaps"))}</div></div>'
-        f'<div><h4>Frescura de la vacante</h4>{fresh_html(fresh)}'
-        + (f'<h4>Lugar y rubro</h4>{place}' if place else "")
-        + f'<h4>Reputación</h4><div class="rating">{rating_html(r.get("ratings"))}</div></div>'
-        f'<div class="apply"><h4>{"Postulación" if applied else "Cómo postular"}</h4>{applied}{cv_html(r)}{how}'
+        f'<div class="d-why"><h4>Por qué calza</h4>{bullets(r.get("strengths"))}</div>'
+        f'<div class="d-gaps"><h4>Brechas</h4>{bullets(r.get("gaps"))}</div>'
+        f'<div class="apply"><h4>{"Postulación" if applied else "Cómo postular"}</h4>{applied}{how}{cv_html(r)}'
         f'{contacts_html(r)}{people_html(r)}<div class="meta">{meta_html(r)}</div>{also_html(r)}'
         + (f'<div class="d-links">{posting}</div>' if posting else "")
         + f'<label class="done-l"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> Revisada</label></div>'
+        f'<div class="d-more"><div><h4>Frescura de la vacante</h4>{fresh_html(fresh)}</div>'
+        f'<div><h4>Lugar y rubro</h4>{place or '<span class="dim">Sin dato</span>'}</div>'
+        f'<div><h4>Reputación</h4><div class="rating">{rating_html(r.get("ratings"))}</div></div></div>'
         "</div></details></article>"
     )
 
@@ -1221,15 +1236,12 @@ SOON_VISIBLE = 8  # closing-soon cards shown at once; the rest fold under "Ver N
 def soon_card(r: dict, classes: dict[str, str]) -> str:
     has_cv = bool(r.get("cv_href"))
     return (
-        f'<div class="soon-card{" urgent" if r["closes"]["bucket"] == "hoy" else ""}">'
-        f'<div class="row1"><span class="close {esc(r["closes"]["css"])}">{esc(r["closes"]["label"])}</span>'
-        f'<b class="num" title="Encaje">{esc(r.get("rank_score"))}</b></div>'
-        f'<div class="who">{logo_html(r, classes)}<div style="min-width:0"><div class="t">{esc(r.get("title"))}</div>'
-        f'<div class="co">{esc(r.get("company"))}</div></div></div>'
-        + (f'<div class="how"><b>Cómo:</b> {esc(r["how_to_apply"])}</div>' if r.get("how_to_apply") else "")
-        + f'<div class="cvst{" ok" if has_cv else ""}">{"CV a medida listo" if has_cv else "Sin CV a medida"}</div>'
-        f'<div class="acts">{cv_html(r).replace("cvrow", "cvrow-in")}'
-        f'<button type="button" class="link-btn" data-goto="{esc(r["key"])}">Ver ficha →</button></div></div>'
+        f'<button type="button" class="soon-card{" urgent" if r["closes"]["bucket"] == "hoy" else ""}" data-goto="{esc(r["key"])}" '
+        f'aria-label="Ver ficha: {esc(r.get("title"))}">'
+        f'<span class="row1"><span class="close {esc(r["closes"]["css"])}">{esc(r["closes"]["label"])}</span>'
+        f'<b class="num" title="Encaje">{esc(r.get("rank_score"))}</b></span>'
+        f'<span class="t">{esc(r.get("title"))}</span><span class="co">{esc(r.get("company"))}</span>'
+        f'<span class="cvst{" ok" if has_cv else ""}">{"CV listo" if has_cv else "Sin CV a medida"}</span></button>'
     )
 
 
@@ -1278,8 +1290,11 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     district_opts = "".join(f'<option value="{esc(d)}">{esc(d)}</option>' for d in district_set)
     sector_opts = "".join(f'<option value="{esc(s)}">{esc(s)}</option>' for s in sector_set)
     kind_opts = "".join(f'<option value="{esc(k)}">{esc(k)}</option>' for k in kind_set)
-    mode_buttons = "".join(f'<button type="button" data-quick-mode="{esc(m)}" aria-pressed="false">{esc(m.capitalize())}</button>'
-                           for m in ("presencial", "híbrido", "remoto") if m in modalities)
+    mode_values = [m for m in ("presencial", "híbrido", "remoto") if m in modalities]
+    if any(not r.get("modality") or r.get("modality") == "no declarado" for r in main_rows):
+        mode_values.append("no declarado")
+    mode_checks = "".join(f'<label class="chk"><input type="checkbox" class="fmod" value="{esc(m)}" checked> {esc(m.capitalize())}</label>'
+                          for m in mode_values)
     by_action = Counter(r["action"] for r in main_rows)
     action_buttons = (f'<button type="button" data-quick-action="" aria-pressed="true"><span>Todas</span><span>{len(main_rows)}</span></button>'
                       + "".join(f'<button type="button" data-quick-action="{k}" aria-pressed="false"><span>{esc(lbl)}</span>'
@@ -1358,26 +1373,25 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="fl"><label for="q">Buscar</label><input id="q" type="search" placeholder="Puesto, empresa, distrito"></div>
 <div class="fl"><span class="lb" id="lb-acc">Acción</span><input type="hidden" id="fa" value="">
 <div class="acts-list" role="group" aria-labelledby="lb-acc">{action_buttons}</div></div>
-<div class="fl"><span class="lb" id="lb-mod">Modalidad</span><input type="hidden" id="fm" value="">
-<div class="quick" role="group" aria-labelledby="lb-mod"><button type="button" data-quick-mode="" aria-pressed="true">Todas</button>{mode_buttons}</div></div>
+<fieldset><legend>Modalidad</legend>{mode_checks}</fieldset>
 <div class="fl"><label for="fc">Cierre</label><select id="fc"><option value="">Cualquier fecha</option><option value="hoy">Cierra hoy</option><option value="3d">Hasta 3 días</option><option value="7d">Esta semana</option><option value="fecha">Con fecha de cierre</option><option value="sin">Sin fecha</option></select></div>
 <div class="fl"><label for="fr">Frescura de la vacante</label><select id="fr"><option value="">Toda</option><option value="muy alta">Muy alta</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></div>
+<details class="morefl"><summary>Más filtros</summary>
 <div class="fl"><label for="fz">Zona</label><select id="fz"><option value="">Toda zona</option>{zone_opts}</select></div>
 <div class="fl"><label for="f-district">Distrito</label><select id="f-district"><option value="">Todos los distritos</option>{district_opts}</select></div>
 <div class="fl"><label for="f-sector">Rubro</label><select id="f-sector"><option value="">Todos los rubros</option>{sector_opts}</select></div>
 <div class="fl"><label for="f-kind">Tipo de empresa</label><select id="f-kind"><option value="">Todo tipo de empresa</option>{kind_opts}</select></div>
 <div class="fl"><label for="fd">Revisadas</label><select id="fd"><option value="">Revisadas y pendientes</option><option value="pend">Solo pendientes</option><option value="done">Solo revisadas</option></select></div>
-<div class="legend"><span>Confianza del dato: <span class="dots conf-alta">●●●</span> alta · <span class="dots conf-media">●●○</span> media · <span class="dots conf-baja">●○○</span> baja</span>
-{pref_html}</div>
+<div class="legend"><span>Confianza del dato: <span class="dots conf-alta">●●●</span> alta · <span class="dots conf-media">●●○</span> media · <span class="dots conf-baja">●○○</span> baja</span></div></details>
+<div class="legend" style="border-top:1px solid var(--line);padding-top:14px;margin-top:0">{pref_html}</div>
 </aside>
 <div class="listcol">
 <div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
-<div class="list-tools"><span class="progress">Revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}</span>
-<label>Orden <select id="so">{sort_opts}</select></label></div></div>
+<div class="list-tools"><label>Orden <select id="so">{sort_opts}</select></label></div></div>
 <div class="cols" aria-hidden="true"><span>Encaje</span><span>Oferta</span><span>Modalidad</span><span>Cierre</span><span>Frescura</span><span>Acción</span><span></span></div>
 <div class="track list" id="main" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
 <div class="empty" id="empty" hidden>Ninguna oferta con estos filtros.</div>
-<p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular.</p>
+<p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular · revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}.</p>
 </div>
 </section>
 <nav class="more" aria-label="Más secciones">{more}</nav>
