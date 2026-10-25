@@ -1,7 +1,8 @@
 // jev-search: a portal skill for Peruvian job boards that a plain fetch cannot read
 // (stateful JSF apps like Talento Perú, SPAs, search forms), driven by jev-browse.
 //
-// jev-browse (https://github.com/0x7067/jev-browse, MIT) is vendored as a git submodule
+// jev-browse (MIT; its repository is linked from the README - no URL here: /apply reads the
+// hosts in an installed CLI's source as trusted portals) is vendored as a git submodule
 // at vendor/jev-browse and run through its committed bundle (bundled/cli.mjs), so this
 // skill has zero runtime dependencies of its own and picks up jev-browse updates with
 // `git submodule update --remote vendor/jev-browse`. jev-browse drives a real Chrome:

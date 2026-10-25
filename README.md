@@ -10,7 +10,7 @@ Este repositorio es un fork de [MadsLorentzen/ai-job-search](https://github.com/
 
 <p align="center">
   <img src="assets/peru/portales.svg" alt="Portales peruanos: Computrabajo, Bumeran, Get on Board y LinkedIn, con distritos de Lima y filtros del lado del servidor" width="49%">
-  <img src="assets/peru/navegador.svg" alt="Navegador real con jev: Talento Perú, Laborum, Empleos Perú, Prácticas.pe y la bolsa de tu universidad" width="49%">
+  <img src="assets/peru/navegador.svg" alt="Navegador real con jev: Laborum, Empleos Perú y la bolsa de tu universidad" width="49%">
 </p>
 <p align="center">
   <img src="assets/peru/modalidad.svg" alt="Modalidad de cada oferta: presencial, híbrido, remoto o no declarado" width="49%">
@@ -21,7 +21,20 @@ Este repositorio es un fork de [MadsLorentzen/ai-job-search](https://github.com/
   <img src="assets/peru/sueldo.svg" alt="Cuánto vale de verdad S/ 3,500 al mes: planilla general S/ 3,950, recibo por honorarios S/ 3,500, pequeña empresa S/ 3,475, microempresa S/ 3,024" width="49%">
 </p>
 
-### Instalación
+## Contenido
+
+1. [Instalación](#instalación)
+2. [Uso diario: correr los scripts sin Claude](#uso-diario-correr-los-scripts-sin-claude)
+3. [Portales y cobertura](#portales-y-cobertura)
+4. [Qué trae](#qué-trae)
+5. [CV sugerido y proyectos recomendados](#cv-sugerido-y-proyectos-recomendados)
+6. [Ejemplos de las CLIs](#ejemplos-de-las-clis)
+7. [Perfiles: varias áreas o varias personas](#perfiles-varias-áreas-o-varias-personas)
+8. [Programas de extensión](#programas-de-extensión)
+9. [Herramientas opcionales](#herramientas-opcionales)
+10. [Más documentación](#más-documentación)
+
+## Instalación
 
 ```bash
 git clone --recurse-submodules https://github.com/johnbarraza/ai-job-search-pe.git
@@ -32,7 +45,56 @@ claude                                   # y dentro: /setup
 
 Si ya lo clonaste sin `--recurse-submodules`: `git submodule update --init vendor/jev-browse`.
 
-### Qué trae
+Necesitas Python 3.10+ y [Bun](https://bun.sh) (las CLIs de algunos portales). Buscar, actualizar la página y consultar el estado se corren sin LLM. Para evaluar el encaje y redactar un CV específico puedes usar Claude Code (`/rank`, `/apply`) o pedir a Codex u otro agente que siga las especificaciones canónicas en `.claude/` y el perfil en `CLAUDE.md`; las CLIs y los JSON son compartidos.
+
+## Uso diario: correr los scripts sin Claude
+
+Todo se corre desde la carpeta del perfil (por ejemplo `perfiles/<nombre>`). Cada paso deja un archivo que Claude, Codex u otro agente puede leer después, así no repite el trabajo.
+
+```bash
+python tools/pe_pipeline.py buscar --detalle      # 1. refresca la lista: corre las consultas guardadas
+#    (agente) /rank                                 # 2. evalúa el encaje de las nuevas
+python tools/pe_pipeline.py actualizar --titulo "Tu Nombre"   # 3. duplicados, frescura, lugar y página
+python tools/pe_pipeline.py estado                # 4. qué cierra pronto y qué falta
+```
+
+Luego abre `reports/revision-ofertas.html` con doble clic: funciona sin Claude y sin internet. Muestra las ofertas en lista (con carrusel opcional), filtros rápidos por modalidad, distrito, rubro y tipo de empresa, los cierres próximos en una fila desplazable de hasta cuatro tarjetas visibles y el botón **CV sugerido**, que descarga el PDF a medida ya preparado.
+
+| Paso | Qué hace | Deja |
+|---|---|---|
+| `buscar` | Corre las consultas de `reports/busqueda/consultas.json` en LinkedIn, Bumeran, Computrabajo, SERVIR y Prácticas.pe. Separa las ofertas que aún no están en `seen_jobs.json` y registra la cobertura y los errores de cada portal. `--detalle` guarda el detalle disponible de cada nueva (en SERVIR, los datos del listado; las bases están en el Word); `--registrar` las agrega como `new` para `/rank`. | `reports/busqueda/<fecha>_<hora>/`, `nuevas.json`, `cobertura.json` |
+| `portales` | Lista los portales: cuáles tienen CLI, cómo les fue en la última búsqueda y los enlaces para buscar a mano en los demás (no usa la red). | `reports/busqueda/cobertura.json` |
+| `actualizar` | Duplicados entre portales → frescura → lugar y rubro → página y su gemelo JSON. `--logos` descarga logos; `--artifact` arma la copia para claude.ai. | `reports/revision-ofertas.html` y `.json` |
+| `estado` | Resumen: qué cierra en 7 días (con cómo postular y si hay CV) y qué conviene postular. `--json` lo imprime como datos. | (pantalla) |
+
+**Para cualquier agente:** `reports/revision-ofertas.json` (todas las ofertas con acción, cierre, frescura, CV y brechas), `reports/busqueda/nuevas.json` (lo nuevo por evaluar) y `python tools/pe_pipeline.py estado --json` son la forma rápida de ponerlo al día: pídele *"lee reports/revision-ofertas.json y dime qué hago hoy"*.
+
+**Dónde buscar.** Por defecto, solo en tu ciudad y país (Lima, Perú). Las ofertas de otro país entran solo si tu perfil lo dice, con una línea `Abroad:` en `CLAUDE.md` (`/setup` la pregunta):
+
+- `- **Abroad:** remote only, for research assistant roles`: entran solo las remotas (`buscar` les agrega `--remote remote`).
+- `- **Abroad:** open to relocating`: entran todas.
+
+La página dice qué regla aplica y tiene un interruptor para ver también las que tu perfil deja fuera.
+
+Formato de las consultas, opciones y qué archivo usa cada paso: [docs/PIPELINE.md](docs/PIPELINE.md).
+
+## Portales y cobertura
+
+| Portal | Cómo se cubre |
+|---|---|
+| LinkedIn Jobs | CLI `linkedin-search` (limita las ráfagas: `buscar` espera 6 s entre consultas y para tras dos errores 429) |
+| Bolsa de tu universidad | A mano, con tu cuenta; su URL va en `consultas.json` → `portales`. Buscar por palabras clave y Remoto/Presencial |
+| Talento Perú (SERVIR) | CLI `tools/pe_servir.py` para convocatorias laborales y prácticas; `pip install -r tools/requirements-servir.txt` |
+| Bumeran | CLI `bumeran-search` |
+| Laborum | Enlace de búsqueda por consulta; o `jev-search` |
+| Indeed Perú | Enlace de búsqueda por consulta (solo enlace); o `jev-search` |
+| Computrabajo | CLI `computrabajo-search` |
+| Empleos Perú (MTPE) | Enlace; o `jev-search` |
+| Prácticas.pe | CLI `tools/pe_practicas.py` para buscar por carrera en Lima y leer cada convocatoria; `pip install -r tools/requirements-servir.txt` |
+
+`python tools/pe_pipeline.py portales` imprime el estado real (consultas ok o fallidas, resultados, errores y fecha) y la página lo muestra en "Portales y cobertura". Qué se probó, qué falla y qué falta para darle CLI a cada uno: [docs/PORTALES.md](docs/PORTALES.md).
+
+## Qué trae
 
 | Qué | Dónde |
 |---|---|
@@ -40,30 +102,50 @@ Si ya lo clonaste sin `--recurse-submodules`: `git submodule update --init vendo
 | **Bumeran Perú**: filtros del lado del servidor por región, distrito, modalidad, nivel (`--level trainee-pasante`) y antigüedad | `.agents/skills/bumeran-search/` |
 | **Get on Board**: datos, analytics, tech y startups en Perú, incluye remotos abiertos a Perú (`-l Peru`) | `.agents/skills/getonboard-search/` |
 | **LinkedIn** (de upstream) con `-l "Lima, Peru"`: páginas públicas, sin iniciar sesión | `.agents/skills/linkedin-search/` |
-| **jev-search** (opcional, de pago): Talento Perú (SERVIR), Laborum, Empleos Perú, Prácticas.pe, Indeed o la bolsa de tu universidad, con un navegador real manejado por [jev-browse](https://github.com/0x7067/jev-browse) | `.agents/skills/jev-search/` + submódulo `vendor/jev-browse` |
+| **Prácticas.pe**: resultados por carrera, paginación y detalle por convocatoria, con URL individual | `.agents/skills/practicas-search/` · `tools/pe_practicas.py` |
+| **Flujo sin LLM**: buscar, actualizar y ver el estado; cada paso deja un JSON que Claude puede leer | `tools/pe_pipeline.py` · [docs/PIPELINE.md](docs/PIPELINE.md) |
+| **Página de revisión**: lista de ofertas con carrusel opcional, filtros, cierres de la semana en un acordeón, CV incrustados y cobertura de portales; se abre sin Claude | `tools/pe_revision.py` → `reports/revision-ofertas.html` |
 | **Modalidad** en cada resultado: `presencial`, `híbrido`, `remoto` o `no declarado`, comparada con tu preferencia | campo `modality`; `Work mode preference` en `CLAUDE.md` |
-| **Nivel del puesto** en cada resultado: práctica preprofesional o profesional, pasantía, programa de extensión, trainee, asistente de investigación, asistente, analista, asociado, junior… comparado con lo que buscas | campo `level`; `Target level` en `CLAUDE.md` |
-| **Programas de extensión** (OSINERGMIN, OSIPTEL, SUNASS, ProInversión, SMV, BCRP, SBS, OSITRAN, INDECOPI) con plazos verificados, ordenados por cierre | `python tools/pe_programas.py` · `data/peru/programas_extension.json` |
+| **Fuera del Perú**: solo si el perfil lo pide, y remoto salvo que aceptes mudarte | `Abroad:` en `CLAUDE.md` |
+| **Nivel del puesto**: práctica preprofesional o profesional, pasantía, programa de extensión, trainee, asistente de investigación, asistente, analista, asociado, junior… comparado con lo que buscas | campo `level`; `Target level` en `CLAUDE.md` |
+| **Frescura y ghost jobs**: edad desde la publicación original (no la renovación), avisos republicados, vencimiento del portal, postulantes en LinkedIn, riesgo bajo/medio/alto | `tools/pe_frescura.py` |
+| **Duplicados**: la misma oferta en varios portales se revisa una vez ("También en") | `tools/pe_duplicados.py` |
+| **Lugar y rubro** de cada oferta: distrito y zona de Lima, rubro del empleador, consultora o cliente, con fuente y confianza | `tools/pe_contexto.py` |
+| **Logos de las empresas**, tomados del propio aviso o de MyWorkIn | `tools/pe_logos.py` → `company_research/logos/` |
+| **Reputación del empleador**: calificación de Computrabajo con número de opiniones, subpuntajes y conteo por área; reglas para leer Glassdoor, GPTW (pagado) y SUNAFIL | `computrabajo-search ... company <empresa>` |
+| **Programas de extensión** (OSINERGMIN, OSIPTEL, SUNASS, ProInversión, SMV, BCRP, SBS, OSITRAN, INDECOPI) con plazos verificados | `tools/pe_programas.py` · `data/peru/programas_extension.json` |
 | **CV de 1 página** por defecto (lo más común en Perú); 2 páginas solo si lo pides | `CV length:` en `CLAUDE.md` |
 | **Perfiles**: una carpeta de trabajo por persona (`/setup --user <nombre>`), que nunca se sube | `tools/perfiles.py` · `perfiles/<nombre>/` |
-| **Calculadora de sueldo**: planilla general vs pequeña/micro empresa (REMYPE) vs recibo por honorarios vs prácticas, con RMV, UIT, AFP/ONP y renta 2026 | `python tools/pe_sueldo.py 4000 --comparar` |
-| **Página de revisión** de una búsqueda, en el orden del flujo (búsqueda → encaje → frescura → reputación → acción), offline y con filtros | `python tools/pe_revision.py --titulo "Nombre"` → `reports/revision-ofertas.html` |
-| **Logos de las empresas** en la página de revisión, tomados del propio aviso (LinkedIn, Bumeran, Computrabajo) o de MyWorkIn | `python tools/pe_logos.py reports/detalles/*.json reports/busqueda/*.json` → `company_research/logos/` |
-| **Lugar y rubro** de cada oferta: distrito y zona de Lima, rubro del empleador, consultora o cliente, con fuente y confianza | `python tools/pe_contexto.py reports/detalles/*.json --json > reports/contexto.json` |
-| **Reputación del empleador**: calificación de Computrabajo con número de opiniones, subpuntajes, conteo por área y opiniones con puesto y fecha; reglas para leer Glassdoor, GPTW (pagado) y SUNAFIL | `bun run .agents/skills/computrabajo-search/cli/src/cli.ts company adecco --area "recursos humanos"` |
-| **Frescura y ghost jobs**: edad desde la publicación original (no la renovación), avisos republicados, vencimiento del portal, postulantes en LinkedIn, riesgo bajo/medio/alto | `python tools/pe_frescura.py detalle.json --calibrar job_scraper/seen_jobs.json` |
-| **Sueldos por empresa** (MyWorkIn, autodeclarados) volcados a `salary_data.json` para `/apply` | `python tools/myworkin_salaries.py "Credicorp"` |
-| **Guía del mercado**: CV peruano (ciclo, quinto/tercio superior, grados), convocatorias del Estado (CAS), Ley de prácticas (subvención, seguro FOLA o EsSalud), cómo leer una oferta, modalidad, nivel, distritos de Lima | `.claude/skills/job-application-assistant/10-peru-market.md` |
+| **Calculadora de sueldo**: planilla general vs pequeña/micro empresa (REMYPE) vs recibo por honorarios vs prácticas, con RMV, UIT, AFP/ONP y renta 2026 | `tools/pe_sueldo.py` |
+| **Sueldos por empresa** (MyWorkIn, autodeclarados) para `/apply` | `tools/myworkin_salaries.py` |
+| **Guía del mercado**: CV peruano (ciclo, quinto/tercio superior, grados), convocatorias del Estado (CAS), Ley de prácticas, cómo leer una oferta, modalidad, nivel, distritos de Lima | `.claude/skills/job-application-assistant/10-peru-market.md` |
 
 Los portales daneses vienen desactivados (`enabled: false`), igual que `jev-search` hasta que configures sus claves.
 
-### Ejemplos
+## CV sugerido y proyectos recomendados
+
+El botón **CV sugerido** descarga el PDF a medida asociado a la oferta (`cv` en `seen_jobs.json`). La selección de experiencia y cursos se hace con las reglas de [`10-peru-market.md`](.claude/skills/job-application-assistant/10-peru-market.md); `/rank` muestra encaje, fortalezas y brechas. Si el perfil tiene su propio generador de CV, puede compilar y verificar los PDF en un paso. La página no inventa ni genera un CV nuevo al pulsar el botón. Si falta el PDF, primero hay que preparar y revisar ese CV con `/apply`.
+
+Estos proyectos sirven como referencias o herramientas complementarias. **No se importó su código ni se ejecutan desde este repositorio.** Sus funciones son las que describen sus propios repositorios, no una prueba independiente de que mejoren las contrataciones en Perú.
+
+| Proyecto | Para qué puede servir aquí | Estado en este fork |
+|---|---|---|
+| [Career-Ops](https://github.com/career-ops-hq/career-ops) | Comparar su evaluación de ofertas, CV por puesto y seguimiento con `/rank`, `/apply` y `estado`; funciona con Codex y Claude Code. | Referencia de flujo; sin integración. |
+| [Resume Matcher](https://github.com/srbhr/Resume-Matcher) | Probar visualmente un CV frente a una oferta y comprobar cómo se extrae el texto del PDF. | Recomendado para una comprobación ATS adicional; sin integración. |
+| [Applire](https://github.com/Applire/Applire) | Preguntar por experiencia faltante y rastrear qué afirmaciones del CV tienen respaldo. | Referencia para preguntas y evidencia; sus convenciones son del mercado DACH. |
+| [Resume Tailoring Skill](https://github.com/varunr89/resume-tailoring-skill) | Selección de experiencias por competencias y preguntas para descubrir hechos aún no documentados. | Referencia para `/apply`; sin instalación. |
+| [Job Kit](https://github.com/yapsancode/job-kit) | Contrastar CV de una página en LaTeX y revisión crítica como reclutador y ATS. | Referencia afín al generador actual; sin integración. |
+| [Resume Builder de DaveVoyles](https://github.com/DaveVoyles/resume-builder) | Ver un registro de evidencia y una explicación de cada cambio en el CV. | Idea útil para mejorar la trazabilidad; sin integración. |
+
+Para probar **una** herramienta adicional con los PDF existentes, empezaría por Resume Matcher y su lectura ATS. Para comparar un flujo completo de búsqueda en Codex, Career-Ops es la opción más cercana; Applire sirve para estudiar la entrevista de brechas, teniendo presente su enfoque europeo.
+
+## Ejemplos de las CLIs
 
 ```bash
 bun run .agents/skills/computrabajo-search/cli/src/cli.ts search -q "practicante economia" -l "San Isidro" --jobage 7 --format table
 bun run .agents/skills/bumeran-search/cli/src/cli.ts search -q "practicante" -l "Lima" --level trainee-pasante --remote hybrid --format table
+bun run .agents/skills/linkedin-search/cli/src/cli.ts search -q "research assistant" -l "Chile" --remote remote --format table
 bun run .agents/skills/getonboard-search/cli/src/cli.ts search -q "data analyst" -l Peru --format table
-bun run .agents/skills/jev-search/cli/src/cli.ts search --site talentoperu -q "economista" -l "Lima" --format table
 python tools/pe_programas.py --career economía
 python tools/pe_sueldo.py 3500 --comparar
 python tools/pe_sueldo.py 1230 --regimen practicas
@@ -75,7 +157,7 @@ FA8A687D196315B661373E686DCF3405 Practicante Preprofesional de Economía y Chorr
 FCA076EA60C14D4B61373E686DCF3405 Practicante Profesional de Economía, Adm Santiago De Surco, Lim presencial   práctica profesional
 ```
 
-### Perfiles: varias áreas o varias personas
+## Perfiles: varias áreas o varias personas
 
 - **Una persona, varias áreas** (finanzas, regulación, sector público): no hace falta nada
   especial. Cada área es una categoría de búsqueda en tu `search-queries.md`;
@@ -101,11 +183,15 @@ cualquier rama `perfil/*`, aunque alguien haga `git push --all`. Como tu fork es
 conviene que tu búsqueda real también viva en un perfil (`/setup --user <tu-nombre>`) y que
 la raíz del repo quede como plantilla.
 
-### Programas de extensión
+## Programas de extensión
 
 Becas de formación de reguladores, del BCRP y de la SMV (enero a marzo, con examen) que suelen abrir prácticas en la entidad. Sus ventanas de inscripción son fijas (septiembre a noviembre) y no aparecen en los portales de empleo, así que viven en un registro aparte, `data/peru/programas_extension.json`. Cada entrada tiene su fuente, su estado (`abierta`, `por_confirmar`, `cerrada`) y su fecha de verificación. `python tools/pe_programas.py` lista las abiertas por fecha de cierre (🔥 a 7 días o menos), y `/scrape` las muestra en su propia tabla y re-verifica la página oficial de las que cierran pronto. Una fecha que solo aparece en una fuente secundaria queda **por confirmar** y nunca se presenta como hecho.
 
+## Herramientas opcionales
+
 ### jev-search y el submódulo jev-browse
+
+**jev-search** (opcional, de pago) cubre Laborum, Empleos Perú, Indeed o la bolsa de tu universidad con un navegador real manejado por [jev-browse](https://github.com/0x7067/jev-browse) (`.agents/skills/jev-search/`). Prácticas.pe ya tiene CLI pública.
 
 `jev-browse` (TypeScript, MIT) vive como **submódulo de git** en `vendor/jev-browse`, siguiendo su rama `main`. El CLI ejecuta su bundle ya compilado (`bundled/cli.mjs`), así que no hay `npm install`. Para traer sus actualizaciones:
 
@@ -123,6 +209,17 @@ Necesita Node 22+, Chrome y claves de modelo (`OPENROUTER_API_KEY` o `TYPESAFE_A
 [Agent-Reach](https://github.com/Panniantong/Agent-Reach) resuelve LinkedIn con `linkedin-mcp-server`, que maneja **tu cuenta** con la cookie de sesión de tu navegador. Automatizar la cuenta va contra el acuerdo de usuario de LinkedIn, y el propio Agent-Reach advierte riesgo de bloqueo. Para buscar ofertas, `linkedin-search` ya trae resultados y descripciones completas sin iniciar sesión. Si igual lo quieres, puedes agregarlo tú mismo, de preferencia con una cuenta secundaria: `claude mcp add linkedin -- uvx mcp-server-linkedin@latest`.
 
 Todos los CLIs usan un User-Agent honesto que los identifica y son para **uso personal y con bajo volumen**. Las fuentes y la fecha de verificación de cada cifra están en `10-peru-market.md`.
+
+## Más documentación
+
+| Documento | Para qué |
+|---|---|
+| [docs/PIPELINE.md](docs/PIPELINE.md) | Los scripts sin LLM: consultas, opciones, archivos que leen y escriben, cómo los usa Claude |
+| [docs/PORTALES.md](docs/PORTALES.md) | Cada portal: cómo se cubre, qué se probó, errores conocidos y qué falta |
+| [SETUP.md](SETUP.md) | Instalación detallada y repositorio privado |
+| [`10-peru-market.md`](.claude/skills/job-application-assistant/10-peru-market.md) | Reglas del mercado peruano: CV, convocatorias, prácticas, sueldos, distritos |
+| `RETOMAR.md` (en cada perfil) | Dónde se quedó la búsqueda de esa persona |
+
 
 ---
 
@@ -257,7 +354,7 @@ If the URL can't be fetched (some job portals block automated access), you can p
 /apply <paste the full job description here>
 ```
 
-This runs the full workflow: evaluate fit, draft CV + cover letter, review with a second agent, revise, and present the final output.
+This runs the full workflow: evaluate fit, draft CV + cover letter, review with a second agent, revise, and present the final output. The posting passes a deterministic integrity gate first (hidden text, invisible characters, instruction-shaped lines, hidden links), and its one-line verdict opens the evaluation; the agents that fetch and review read-only.
 
 Postings are treated as untrusted input (the workflow follows no instructions embedded in them and fetches no links from their body), but agentic defenses are instruction-level, not a sandbox - on an unfamiliar job board, skim what was fetched and written before you hit send. Details in [SECURITY.md](SECURITY.md).
 
@@ -271,7 +368,7 @@ Postings are treated as untrusted input (the workflow follows no instructions em
 - **`/gmail-sync`** reads your Gmail (via the Gmail connector) for status signals on your open applications - interview invites, assessment links, offers, rejections - and proposes them as a batch for you to approve before anything is written to the tracker or `outcome.md`, citing the source email on every proposed change. Offers stop short of proposing `hired`/`offer_declined` since that's your call; conflicting or unmatched signals get flagged for a manual `/outcome` pass instead of guessed.
 - **`/rank`** bridges `/scrape` and `/apply`: it batch-scores all newly scraped postings against the fit framework (parallel agents fetch each posting and score the five evaluation dimensions) and returns a ranked shortlist with honest per-job strengths and gaps. Deal-breakers veto, deadlines get urgency flags, dead postings get marked expired. Pick a number and it hands off to the full `/apply` workflow.
 - **`/expand`** enriches your profile by scanning public sources you've already linked in it (GitHub repos, portfolio site, Kaggle, Google Scholar) and looking up syllabi for named courses and certifications. Discovered competencies are added to your profile with a source tag. Useful right after `/setup` to surface skills that documents alone don't make explicit.
-- **`/upskill`** analyzes the gap between your profile, your tracked job postings, and your ranked-but-untracked postings (`/rank`'s recorded gaps in `seen_jobs.json`) — or a single posting via `/upskill <URL>`. Produces a prioritized heatmap of skill gaps and a learning plan with web-searched study resources and time estimates. Useful for career planning between applications.
+- **`/upskill`** analyzes the gap between your profile, your tracked job postings, and your ranked-but-untracked postings (`/rank`'s recorded gaps in `job_scraper/seen_jobs.json`) — or a single posting via `/upskill <URL>`. Produces a prioritized heatmap of skill gaps and a learning plan with web-searched study resources and time estimates. Useful for career planning between applications.
 - **`/html-report`** generates a self-contained HTML dashboard from `job_search_tracker.csv` and the application archives — stat cards, status/sector/channel/funnel charts (inline SVG, no external dependencies), and a filterable applications table. Opens directly in a browser, fully offline. Re-run it any time after `/apply` or `/outcome` adds new entries.
 - **`/add-template`** registers your own CV or cover letter template (LaTeX, Typst, or another toolchain) in place of the stock ones. It captures the template's instructions (source extension, compile command, fonts, style rules, page limit), runs a mandatory test compile, and wires the template into `/apply`. See [Custom templates](#custom-templates) below.
 - **`/add-portal`** generates a job-portal search skill for a job board in your market. It investigates the portal (search URL pattern, result structure, access rules), scaffolds the CLI skill from the same structure as the shipped ones, and test-runs a live query before registering. See [Job search tools](#job-search-tools) below.
@@ -345,10 +442,12 @@ ai-job-search/
 │   ├── check_framework_version.py     # CI check: framework_version bumped when skill files change
 │   ├── check_upstream_updates.py      # Preview which personalized files an upstream update touches
 │   ├── convert_salary_excel.py        # Convert salary Excel to JSON
+│   ├── fetch_page.py                  # GET-only browser-header retry for 403s (robots.txt enforced)
 │   ├── install_portal_clis.py         # Install every discovered portal CLI (bun install)
 │   ├── lint_skills.py                 # CI lint for skills, commands, settings.json
+│   ├── posting_guard.py               # Integrity gate: strip hidden text, flag injection-shaped lines
 │   ├── robots_check.py                # Gate the browser-header retry against robots.txt
-│   ├── security_guards.py             # CI guards: permission allowlist, gitignore rules, manifests
+│   ├── security_guards.py             # CI guards: permission allow/ask/deny, skill grants, gitignore, manifests
 │   ├── upstream_triage.py             # Sort upstream commits into worth-reviewing vs probably-skip
 │   ├── verify_layout.py               # Measure a compiled PDF's page layout (holes, orphans, footer collisions)
 │   ├── verify_pdf.py                  # Verify a compiled PDF's page count and extractable text

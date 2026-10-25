@@ -161,7 +161,7 @@ class RepoWiring(unittest.TestCase):
     def test_setup_documents_the_user_flag(self):
         setup = (REPO / ".claude" / "commands" / "setup.md").read_text(encoding="utf-8")
         self.assertIn("--user <nombre>", setup)
-        self.assertIn("python tools/perfiles.py crear", setup)
+        self.assertIn("python3 tools/perfiles.py crear", setup)
 
 
 if __name__ == "__main__":

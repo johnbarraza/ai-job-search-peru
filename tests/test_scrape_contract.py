@@ -64,6 +64,16 @@ class ScrapeSearchOutputContractTests(unittest.TestCase):
         for portal in PORTAL_CLIS:
             search_ts = portal / "cli" / "src" / "commands" / "search.ts"
             if not search_ts.exists():
+                # Prácticas.pe is a Python CLI shared by the profile and the
+                # portable skill, with the same JSON result contract.
+                if portal.name == "practicas-search":
+                    search_py = REPO_ROOT / "tools" / "pe_practicas.py"
+                    source = search_py.read_text(encoding="utf-8") if search_py.exists() else ""
+                    emitted = set(re.findall(r'"([a-z_][a-z_0-9]*)"\s*:', source))
+                    missing = sorted(contract - emitted)
+                    if missing:
+                        failures.append(f"{portal.name}: missing {missing} in search output")
+                    continue
                 failures.append(f"{portal.name}: no cli/src/commands/search.ts")
                 continue
             source = search_output_source(search_ts)
@@ -143,7 +153,7 @@ class SeenJobsDedupContinuityTests(unittest.TestCase):
         text = SCRAPER_SKILL.read_text(encoding="utf-8")
         self.assertRegex(
             text,
-            r"URL matches any existing `seen_jobs\.json` entry, regardless of\s+that entry's key",
+            r"URL matches any existing `(?:job_scraper/)?seen_jobs\.json` entry, regardless of\s+that entry's key",
             "legacy seen_jobs entries must be matched by URL during the key-rule transition",
         )
 

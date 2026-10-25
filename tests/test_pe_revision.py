@@ -29,6 +29,10 @@ def ranked(**over):
 
 
 class Actions(unittest.TestCase):
+    def test_applied_takes_precedence_over_deadline_and_freshness(self):
+        entry = ranked(application_status="applied", applied_date="2026-10-24", deadline="2026-10-25")
+        self.assertEqual(pr.action_for(entry, {"risk": "bajo", "window": "fresca"}, date(2026, 10, 24)), "postulada")
+
     def test_shortlist_actions_follow_freshness(self):
         good = ranked()
         self.assertEqual(pr.action_for(good, {"risk": "bajo", "window": "fresca"}), "ya")
@@ -81,6 +85,15 @@ class Rendering(unittest.TestCase):
         )
         self.assertEqual(data["ranked"][0]["action"], "ya")
         self.assertIn("publicada 2026-10-15", page)
+
+    def test_applied_posting_is_in_its_own_section_and_json(self):
+        data, page = self.build({"k": ranked(application_status="applied", applied_date="2026-10-24")})
+        exported = pr.export(data, date(2026, 10, 24), "Prueba")
+        self.assertIn("Postuladas (1)", page)
+        self.assertIn("Postulación registrada", page)
+        self.assertEqual(exported["counts"]["postuladas"], 1)
+        self.assertEqual(exported["para_decidir"], [])
+        self.assertEqual(exported["postuladas"][0]["applied_date"], "2026-10-24")
 
     def test_values_from_the_state_are_escaped_and_only_http_links_render(self):
         evil = ranked(company='<script>alert(1)</script>', title='T "x"', url="javascript:alert(1)",
@@ -140,12 +153,12 @@ class ContextAndSorting(unittest.TestCase):
 
     def test_place_and_sector_render_as_chips_with_readable_evidence_and_a_map(self):
         html = pr.context_html(self.CTX)
-        self.assertIn('<span class="chip place">Santiago de Surco</span>', html)
+        self.assertIn('data-set-filter="district" data-value="Santiago de Surco"', html)
         self.assertNotIn("Lima Moderna", html)  # the zone lives in the filter, not on every row
         # the sector already says "Consultora": no second chip repeating it
-        self.assertNotIn('<span class="chip kind">Consultora</span>', html)
+        self.assertNotIn('data-value="Consultora"', html)
         other = pr.context_html(dict(self.CTX, rubro=dict(self.CTX["rubro"], label="Servicios Profesionales")))
-        self.assertIn('<span class="chip kind">Consultora</span>', other)
+        self.assertIn('data-set-filter="kind" data-value="Consultora"', other)
         self.assertIn("dato del portal", html)
         self.assertIn("●●○", html)
         self.assertNotIn("google.com/maps", html)  # a district alone is not where the job is: no map
@@ -165,7 +178,21 @@ class ContextAndSorting(unittest.TestCase):
         self.assertNotIn("maps", pr.context_html(ctx))
         self.assertIn('<span class="chip kind">Remoto</span>', pr.context_html(ctx))
 
-    def test_rows_carry_sort_keys_and_headers_are_sort_buttons(self):
+    def test_quick_filters_use_real_posting_values_and_show_latest_search(self):
+        data = pr.collect({"seen": {"k": ranked()}}, [], Path(tempfile.mkdtemp()))
+        data["ranked"][0]["context"] = dict(self.CTX, rubro={**self.CTX["rubro"], "for_client": True})
+        data["cobertura"] = {"fecha": "2026-10-24", "portales": [
+            {"id": "practicas-pe", "nombre": "Prácticas.pe", "metodo": "cli", "ok": 3,
+             "consultas": 3, "fallidas": 0, "resultados": 80, "fecha": "2026-10-24"}]}
+        page = pr.render(data, date(2026, 10, 24), None)
+        for term in ('Última búsqueda: <strong>24/10/2026 · Prácticas.pe', 'id="f-district"',
+                     'value="Santiago de Surco"', 'id="f-sector"', 'value="Consultora de Recursos Humanos"',
+                     'id="f-kind"', 'value="Recluta para un cliente"', 'data-quick-mode="híbrido"',
+                     'data-districts="Santiago de Surco"', 'data-sector="Consultora de Recursos Humanos"',
+                     'data-kinds="Recluta para un cliente"'):
+            self.assertIn(term, page)
+
+    def test_cards_carry_sort_keys_and_the_order_menu_offers_them(self):
         seen = {"k": ranked(rank_score=71)}
         fresh = [{"url": BM_DETAIL, "risk": "bajo", "window": "fresca", "age_days": 3, "signals": []}]
         research = Path(tempfile.mkdtemp())
@@ -174,8 +201,8 @@ class ContextAndSorting(unittest.TestCase):
         self.assertIn('data-s-encaje="71"', page)
         self.assertIn('data-s-frescura="3"', page)
         self.assertIn('data-s-reputacion="4.2"', page)
-        for key in ("accion", "encaje", "puesto", "frescura", "reputacion"):
-            self.assertIn(f'data-sort="{key}"', page)
+        for key in ("accion", "encaje", "puesto", "frescura", "reputacion", "cierre"):
+            self.assertIn(f'<option value="{key}:', page)
         self.assertIn("chip place", page)
 
 
@@ -195,11 +222,7 @@ class ArtifactMode(unittest.TestCase):
             page = pr.render(data, date(2026, 10, 18), None, artifact=artifact)
             self.assertIn(':root:not([data-theme="light"])', page)
             self.assertIn(':root[data-theme="dark"]', page)
-            self.assertIn("tr.hidden=!ok", page)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            self.assertIn("c.hidden=!ok", page)
 
 
 class Deadlines(unittest.TestCase):
@@ -222,7 +245,10 @@ class Deadlines(unittest.TestCase):
         seen = {"a": ranked(deadline="2026-10-20", how_to_apply="Formulario del BCRP"), "b": ranked(title="Otra", url=None)}
         data = pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp()), today=self.TODAY)
         page = pr.render(data, self.TODAY, None)
-        self.assertIn("Cierran en los próximos 7 días (1)", page)
+        self.assertIn('Cierran en los próximos 7 días <span class="count-pill">1</span>', page)
+        self.assertIn('<details class="soon-details" open>', page)
+        self.assertIn('id="soon-track"', page)
+        self.assertIn('id="soon-next"', page)
         self.assertIn('<span class="close today">HOY</span>', page)
         self.assertIn("Formulario del BCRP", page)
         self.assertIn('id="fc"', page)
@@ -295,21 +321,26 @@ class TailoredCv(unittest.TestCase):
         pr.cv_hrefs(rows, self.root / "reports", artifact=False)
         self.assertEqual(rows[0]["cv_href"], "../cv/CV_Ana_BCRP.pdf")
         self.assertNotIn("cv_href", rows[1])
-        self.assertIn('<a class="btn-cv" href="../cv/CV_Ana_BCRP.pdf"', pr.cv_html(rows[0], artifact=False))
+        self.assertIn('<a class="btn-cv" href="../cv/CV_Ana_BCRP.pdf" download="CV_Ana_BCRP.pdf"', pr.cv_html(rows[0]))
 
-    def test_artifact_uses_a_download_button_and_lists_the_files_to_publish(self):
+    def test_artifact_links_the_published_copy_and_lists_the_files_to_publish(self):
         rows = self.rows()
         manifest = pr.cv_hrefs(rows, self.root / "reports", artifact=True)
         self.assertEqual(manifest, {"CV_Ana_BCRP.pdf": str(self.pdf)})
-        html = pr.cv_html(rows[0], artifact=True)
-        self.assertIn('<button type="button" class="btn-cv" data-file="CV_Ana_BCRP.pdf"', html)
-        self.assertEqual(pr.cv_html(rows[1], artifact=True), "")
+        self.assertIn('<a class="btn-cv" href="CV_Ana_BCRP.pdf" download="CV_Ana_BCRP.pdf"', pr.cv_html(rows[0]))
+        self.assertEqual(pr.cv_html(rows[1]), "")
 
-    def test_only_the_artifact_page_carries_the_download_script(self):
+    def test_embedded_cvs_make_the_page_one_portable_file(self):
+        rows = self.rows()
+        self.assertEqual(pr.cv_hrefs(rows, self.root / "reports", artifact=False, embed=True), {})
+        self.assertTrue(rows[0]["cv_href"].startswith("data:application/pdf;base64,"))
+        self.assertIn('download="CV_Ana_BCRP.pdf"', pr.cv_html(rows[0]))
+
+    def test_every_page_carries_the_download_script_for_any_host(self):
         data = pr.collect({"seen": {"a": ranked(cv=str(self.pdf))}}, [], Path(tempfile.mkdtemp()), today=date(2026, 10, 20))
         pr.cv_hrefs(data["ranked"], self.root, artifact=True)
-        self.assertIn("claude.use('downloads')", pr.render(data, date(2026, 10, 20), None, artifact=True))
-        self.assertNotIn("claude.use('downloads')", pr.render(data, date(2026, 10, 20), None, artifact=False))
+        for artifact in (True, False):
+            self.assertIn("window.claude.use('downloads')", pr.render(data, date(2026, 10, 20), None, artifact=artifact))
 
 
 class Duplicates(unittest.TestCase):
@@ -330,3 +361,110 @@ class Duplicates(unittest.TestCase):
         seen = {"a": ranked(duplicate_of="gone")}
         data = pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp()), today=date(2026, 10, 20))
         self.assertEqual(len(data["ranked"]), 1)
+
+
+class Carousel(unittest.TestCase):
+    def test_postings_to_decide_default_to_a_list_with_an_optional_carousel(self):
+        seen = {"a": ranked(), "b": ranked(title="Otra", url="https://www.linkedin.com/jobs/view/4476949303")}
+        page = pr.render(pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp())), date(2026, 10, 18), None)
+        self.assertIn('<div class="track list" id="main"', page)
+        self.assertEqual(page.count('<article class="card'), 2)
+        for needle in ('id="prev"', 'id="next"', 'id="ticks"', 'data-view="car"', 'data-view="list"', "ArrowRight"):
+            self.assertIn(needle, page)
+        self.assertIn("get('pe_revision_view_v2','list')", page)
+
+    def test_a_logo_shared_by_several_postings_is_embedded_once(self):
+        uri = "data:image/png;base64,iVBORw0KGgo="
+        rows = [dict(ranked(), key="a", logo=uri), dict(ranked(), key="b", logo=uri)]
+        classes = pr.logo_classes(rows)
+        self.assertEqual(classes, {uri: "lg0"})
+        self.assertIn('class="logo img lg0"', pr.logo_html(rows[0], classes))
+
+    def test_a_passed_deadline_closes_the_posting(self):
+        today = date(2026, 10, 24)
+        self.assertEqual(pr.action_for(ranked(deadline="2026-10-21"), {"risk": "bajo", "window": "fresca"}, today), "cerrada")
+        data = pr.collect({"seen": {"a": ranked(deadline="2026-10-21"), "b": ranked(title="Abierta", url=None)}},
+                          [], Path(tempfile.mkdtemp()), today=today)
+        page = pr.render(data, today, None)
+        self.assertIn("Para decidir (1)", page)
+        self.assertIn("Cerradas: su fecha de cierre ya pasó (1)", page)
+
+
+class Export(unittest.TestCase):
+    def test_the_json_twin_carries_the_rows_without_markup(self):
+        data = pr.collect({"seen": {"a": ranked(deadline="2026-10-25", how_to_apply="Formulario")}}, [],
+                          Path(tempfile.mkdtemp()), today=date(2026, 10, 24))
+        out = pr.export(data, date(2026, 10, 24), "Ana")
+        row = out["para_decidir"][0]
+        self.assertEqual((row["action"], row["days_to_close"], row["how_to_apply"]), ("ya", 1, "Formulario"))
+        self.assertEqual(out["counts"]["postular"], 1)
+        self.assertNotIn("<", json.dumps(out, ensure_ascii=False))
+
+    def test_the_cli_writes_the_json_next_to_the_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "seen.json").write_text(json.dumps({"seen": {"k": ranked()}}), encoding="utf-8")
+            proc = subprocess.run(
+                [sys.executable, str(REPO / "tools" / "pe_revision.py"), "--state", str(tmp / "seen.json"),
+                 "--frescura", str(tmp / "none.json"), "--research", str(tmp / "none"), "--out", str(tmp / "r.html"),
+                 "--json", str(tmp / "r.json"), "--today", "2026-10-18"],
+                capture_output=True, text=True, encoding="utf-8",
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(json.loads((tmp / "r.json").read_text(encoding="utf-8"))["counts"]["ranked"], 1)
+
+
+class Abroad(unittest.TestCase):
+    def mode(self, line):
+        path = Path(tempfile.mkdtemp()) / "CLAUDE.md"
+        path.write_text(line, encoding="utf-8")
+        return pr.read_abroad(path)["mode"]
+
+    def test_the_search_stays_home_unless_the_profile_says_otherwise(self):
+        self.assertEqual(self.mode(""), "no")
+        self.assertEqual(self.mode("- **Abroad:** [YOUR_ABROAD]"), "no")
+        self.assertEqual(self.mode("- **Abroad:** remote only, for research assistant roles"), "remoto")
+        self.assertEqual(self.mode("- **Abroad:** open to relocating"), "viajar")
+
+    def test_places_abroad_are_told_from_peruvian_ones(self):
+        self.assertTrue(pr.is_abroad({"portal": "linkedin-search"}, "Bogota, D.C., Colombia"))
+        self.assertFalse(pr.is_abroad({"portal": "linkedin-search"}, "Lima, Peru"))
+        self.assertFalse(pr.is_abroad({"portal": "linkedin-search"}, "Remote"))
+        self.assertFalse(pr.is_abroad({"portal": "computrabajo-search"}, "Arequipa, Arequipa"))
+
+    def test_the_page_hides_what_the_profile_leaves_out_and_says_why(self):
+        seen = {"a": ranked(location="Santiago, Chile", portal="linkedin-search", modality="presencial",
+                            url="https://www.linkedin.com/jobs/view/4476949303"),
+                "b": ranked(location="Santiago, Chile", portal="linkedin-search", modality="remoto", title="Remota",
+                            url="https://www.linkedin.com/jobs/view/4476949304")}
+        data = pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp()))
+        data["abroad_pref"] = {"mode": "remoto", "text": "remote only"}
+        page = pr.render(data, date(2026, 10, 18), None)
+        self.assertEqual(page.count('data-excl="1"'), 1)
+        self.assertIn("fuera del Perú: <b>solo remoto</b>", page)
+        self.assertIn("Extranjero · Santiago, Chile · no remoto", page)
+        data["abroad_pref"] = {"mode": "no", "text": None}
+        self.assertEqual(pr.render(data, date(2026, 10, 18), None).count('data-excl="1"'), 2)
+
+
+class SharedUrls(unittest.TestCase):
+    def test_postings_that_share_a_url_never_borrow_each_others_freshness(self):
+        page = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/modalidades_formativas.xhtml"
+        seen = {"a": ranked(url=page, title="Práctica A"), "b": ranked(url=page, title="Práctica B"),
+                "c": ranked(url=None, title="Sin URL"), "d": ranked(url=None, title="Sin URL 2")}
+        fresh = [{"url": page, "risk": "alto", "window": "vieja", "age_days": 90, "signals": []}]
+        ctx = [{"url": page, "lugar": {"districts": ["Ate"]}, "rubro": {}}]
+        data = pr.collect({"seen": seen}, fresh, Path(tempfile.mkdtemp()), ctx, today=date(2026, 10, 24))
+        for row in data["ranked"]:
+            self.assertNotEqual((row.get("fresh") or {}).get("age_days"), 90, row["title"])
+            self.assertIsNone(row["context"], row["title"])
+
+    def test_a_posting_with_its_own_id_still_joins(self):
+        seen = {"a": dict(ranked(), id="SERVIR:abc", url="https://app.servir.gob.pe/x.xhtml")}
+        fresh = [{"id": "servir:abc", "risk": "bajo", "window": "fresca", "age_days": 2, "signals": []}]
+        data = pr.collect({"seen": seen}, fresh, Path(tempfile.mkdtemp()), today=date(2026, 10, 24))
+        self.assertEqual(data["ranked"][0]["fresh"]["age_days"], 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

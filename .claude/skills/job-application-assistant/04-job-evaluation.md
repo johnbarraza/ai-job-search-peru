@@ -119,7 +119,12 @@ CLAUDE.md:
   preference states it as a requirement, otherwise FLAG
 - Work mode "no declarado": FLAG, and list "confirmar modalidad y días presenciales" among
   the questions for the recruiter
-- Requires relocation: FAIL (deal-breaker)
+- **Abroad** (the workplace is outside the candidate's country): the search is local unless
+  CLAUDE.md's `Abroad:` line says otherwise. No line (or a placeholder): FAIL. `Abroad:
+  remote only` (optionally limited to some roles): PASS when the posting is remote and the
+  role is one the line names, FAIL when it is presencial or híbrido abroad. `Abroad: open to
+  relocating` / `open to travel`: judge it like a local posting and note the move
+- Requires relocation: FAIL (deal-breaker), unless the `Abroad:` line accepts relocating
 - Frequent international travel: FLAG (discuss with user)
 
 Always name the work mode in the Location row's note (e.g. "híbrido 3x semana · San
@@ -155,8 +160,11 @@ Does this role advance career goals and contain tasks that energize?
 ### 6. Salary Benchmark (Optional)
 
 If the salary lookup tool is configured (`salary_data.json` exists), look up the company:
+
+> **Windows:** run these tools as `python`, not `python3`. A python.org install ships no `python3`, so that name reaches the Microsoft Store alias, which either exits 49 with no output (#669) or starts a separate Store Python without the packages `pip` installed (such as pypdf). `.claude/settings.json` allows both spellings.
+
 ```
-python salary_lookup.py "<Company Name>" --json
+python3 salary_lookup.py "<Company Name>" --json
 ```
 
 If a city is known from the posting, add `--city "<City>"` to narrow results.
@@ -174,8 +182,8 @@ Interpret results relative to the baseline defined in the data file's metadata. 
 
 **Peru fork.** For a Peruvian employer, populate the benchmark on demand first, then look it up:
 ```
-python tools/myworkin_salaries.py "<Company Name>"        # merges MyWorkIn data into salary_data.json
-python salary_lookup.py "<Company Name>" --json
+python3 tools/myworkin_salaries.py "<Company Name>"       # merges MyWorkIn data into salary_data.json
+python3 salary_lookup.py "<Company Name>" --json
 ```
 MyWorkIn rows are self-reported monthly ranges in soles, often from one or two people per
 role: quote the role closest to the posting and its report count, never present it as the

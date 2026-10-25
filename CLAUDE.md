@@ -4,7 +4,7 @@
 <!-- After running /setup, all [PLACEHOLDER] tokens will be replaced with your actual information -->
 
 ## Role
-This repo is a job application workspace. Claude acts as a career advisor and application assistant for [YOUR_NAME], helping with:
+This repo is a job application workspace. The AI assistant acts as a career advisor and application assistant for [YOUR_NAME], helping with:
 1. **Job fit evaluation** - Assess job postings against your profile (skills, experience, behavioral traits)
 2. **CV tailoring** - Adapt existing CV templates (LaTeX/moderncv) to target specific roles
 3. **Cover letter writing** - Draft targeted cover letters using existing templates (LaTeX)
@@ -31,6 +31,7 @@ This repo is a job application workspace. Claude acts as a career advisor and ap
 - **CV length:** 1 page <!-- Peru fork default: one page (the norm for Peruvian recruiters, and for prácticas and junior roles). Change to "2 pages" only when the candidate asks. /apply's page check reads this line. -->
 - **Target level:** [YOUR_TARGET_LEVEL] <!-- the position levels you apply for, in the shared vocabulary (10-peru-market.md, "Nivel del puesto"): práctica preprofesional, práctica profesional, pasantía, programa de extensión, trainee, asistente de investigación, asistente, analista, asociado, junior... e.g. "práctica preprofesional o profesional; programas de extensión; analista junior". Scored in Experience Match (04-job-evaluation.md). -->
 - **Work mode preference:** [YOUR_WORK_MODE_PREFERENCE] <!-- presencial / híbrido / remoto (postings that do not say are "no declarado"), and how many on-site days you accept, e.g. "híbrido o remoto; presencial solo en San Isidro o Miraflores". Scored in the Location dimension of 04-job-evaluation.md. -->
+- **Abroad:** [YOUR_ABROAD] <!-- By default, search in your home market only. /setup can set remote only, open to relocating, or open to travel. -->
 
 - **Status:** [YOUR_EMPLOYMENT_STATUS]
 - **LinkedIn headline:** "[YOUR_LINKEDIN_HEADLINE]"
@@ -99,10 +100,13 @@ automatically from your Languages table above - don't duplicate them here. -->
 - `tools/pe_sueldo.py` / `tools/myworkin_salaries.py` - Peruvian pay calculator and per-company salary lookup
 - `tools/pe_frescura.py` - posting freshness and ghost-job risk from the portal CLIs' `detail` output (age from the original publication, renewals, reposts, portal expiry, applicants)
 - `tools/pe_contexto.py` - workplace district and Lima zone, and the employer's sector, each with its source and confidence (posting, portal, client site, web)
-- `tools/pe_revision.py` - offline HTML review page of a search (`reports/revision-ofertas.html`): fit from `/rank`, freshness, employer ratings from `company_research/`, and the next action per job; a posting whose `seen_jobs.json` entry has `cv` (path to its tailored PDF) gets an "Abrir CV" link, or in `--artifact` mode a "Descargar CV" button (publish with `capabilities: {downloads: true}` and the files `--cv-manifest` lists)
+- `tools/pe_revision.py` - offline HTML review page (`reports/revision-ofertas.html`): list by default, closing-soon accordion, fit from `/rank`, vacancy freshness, employer ratings, and next action; a posting with `cv` gets a "CV sugerido" button (embedded in the local page, or published alongside `--artifact` using `--cv-manifest`)
+- `tools/pe_pipeline.py` - model-free CLI for searching, refreshing the review page and JSON, portal coverage, and daily status (`docs/PIPELINE.md`)
+- `tools/pe_servir.py` - model-free SERVIR search for public-sector jobs and internships (JSF form; `tools/requirements-servir.txt`)
+- `tools/pe_practicas.py` - model-free Prácticas.pe search by career and region, with individual posting detail (uses `tools/requirements-servir.txt`)
 - `tools/pe_duplicados.py` - the same posting published on several portals (or by an intermediary such as Universia): description containment plus the role words of the title; `--write` records `duplicate_of` and the review page shows it once, with "También en"
 - `tools/pe_logos.py` - employer logos for the review page, from the postings (`companyLogo` in the portal CLIs) or MyWorkIn, cached as small PNGs in `company_research/logos/`
-- `tools/perfiles.py` / `perfiles/<nombre>/` - one workspace per person (`/setup --user <nombre>`): a git worktree on a local `perfil/<nombre>` branch that a pre-push hook never lets reach a remote; open Claude Code inside it to work on that person's search
+- `tools/perfiles.py` / `perfiles/<nombre>/` - one workspace per person (`/setup --user <nombre>`): a git worktree on a local `perfil/<nombre>` branch that a pre-push hook never lets reach a remote; open an AI coding agent inside it to work on that person's search
 
 ## Workflow for New Job Applications
 1. User provides a job posting (URL or text)
@@ -111,7 +115,7 @@ automatically from your Languages table above - don't duplicate them here. -->
 4. **Verify both documents** (see Verification Checklist below)
 5. Prepare interview talking points based on the role requirements and your strengths
 
-**Important:** When mentioning agentic coding or AI tooling in CVs/cover letters, explicitly reference **Claude Code** by name.
+**Important:** When mentioning AI tooling in CVs or cover letters, name only the tool actually used (for example, Claude Code or Codex).
 
 ## Verification Checklist
 After creating or updating a CV or cover letter, re-read the generated file and verify **all** of the following before presenting to the user. Report the results as a pass/fail checklist.
@@ -151,7 +155,7 @@ Both documents MUST be compiled and visually inspected via the Read tool on the 
 - [ ] **Cover letter bullet font matches body font** - `\lettercontent{}` must not wrap `\begin{itemize}...\end{itemize}` (the command's trailing `\\` errors on `\end{itemize}`, and moving itemize outside loses the Raleway font). Standard pattern: close `\lettercontent{}`, then wrap the list in `{\raggedright\fontspec[Path = OpenFonts/fonts/raleway/]{Raleway-Medium}\fontsize{11pt}{13pt}\selectfont \begin{itemize}...\end{itemize}\par}`
 
 ### ATS & keyword verification (CV)
-ATS parsers read the PDF's embedded text layer, not the rendered page. Extract it with `python tools/verify_pdf.py cv/main_<company>_<role>.pdf --dump-text cv/main_<company>_<role>.txt` (pypdf, then `pdftotext -layout -enc UTF-8`) and verify what a parser sees. If both extractors are missing, skip the parseability items with a warning and check keyword coverage from the visual PDF read instead.
+ATS parsers read the PDF's embedded text layer, not the rendered page. Extract it with `python3 tools/verify_pdf.py cv/main_<company>_<role>.pdf --dump-text cv/main_<company>_<role>.txt` (pypdf, then `pdftotext -layout -enc UTF-8`) and verify what a parser sees. If both extractors are missing, skip the parseability items with a warning and check keyword coverage from the visual PDF read instead.
 - [ ] CV text layer extracts cleanly - no `(cid:*)` markers, `�` replacement characters, or text visible in the PDF but absent from the extraction
 - [ ] Email and phone appear as **literal text** in the extraction (icon-glyph noise like `MOBILE-ALT`/`Envelope` is harmless, but a contact detail carried only by an icon or hyperlink is invisible to ATS)
 - [ ] Reading order of the extracted text matches the visual order (single-column stock template is safe; multi-column custom templates are where this breaks)

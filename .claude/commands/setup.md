@@ -17,13 +17,15 @@ It downloads nothing, keeps that person's profile files, CVs, tracker and seen j
 from everyone else's, and never reaches a remote (`perfiles/` is gitignored and a local
 pre-push hook refuses `perfil/*` branches).
 
+> **Windows:** run these tools as `python`, not `python3`. A python.org install ships no `python3`, so that name reaches the Microsoft Store alias, which either exits 49 with no output (#669) or starts a separate Store Python without the packages `pip` installed (such as pypdf). `.claude/settings.json` allows both spellings.
+
 - **No `--user`:** set up the current workspace, exactly as below. This is the default:
   the person working in this folder.
 - **`--user <nombre>`:** run this first, adding `--cv "<path>"` when the user names a CV
   file to start from (it is copied into the profile's ignored `documents/cv/`):
 
   ```bash
-  python tools/perfiles.py crear <nombre>
+  python3 tools/perfiles.py crear <nombre>
   ```
 
   It creates the profile, or reports it already exists (re-running `/setup --user
@@ -378,6 +380,7 @@ Ask about:
 - **CV length:** "Peruvian recruiters expect a **one-page** CV, especially for prácticas and junior roles. Keep 1 page, or do you want 2?" Record the answer as `CV length: 1 page` (default) or `CV length: 2 pages` in CLAUDE.md's Identity section; `/apply` enforces it.
 - **Target level:** "Which kinds of positions are you applying for? For example prácticas preprofesionales or profesionales, pasantías, programas de extensión (BCRP, SBS, OSINERGMIN…), trainee programmes, asistente de investigación, analista junior." Record the answer as the `Target level:` line in CLAUDE.md's Identity section using the shared level vocabulary (`10-peru-market.md`, "Nivel del puesto"); `/scrape`, `/rank` and `/apply` score every posting's level against it.
 - **Work mode:** "Do you prefer presencial, híbrido or remoto, and how many on-site days a week would you accept? Any districts where on-site is fine?" Record it as the `Work mode preference:` line in CLAUDE.md's Identity section; `/scrape`, `/rank` and `/apply` score every posting's modality against it.
+- **Abroad:** "By default I search only where you live (Lima, Perú). Do you also want postings from other countries? If so: remote only, or would you move or travel? For every kind of role, or only some (e.g. research assistant)?" Record it as an `Abroad:` line right after `Work mode preference:` — `remote only` (add the roles if they gave any), `open to relocating`, or `open to travel` — and leave the line out when they say no. `tools/pe_pipeline.py buscar` skips queries placed abroad without it (and runs them with `--remote remote` under `remote only`); the review page (`tools/pe_revision.py`) states the setting and hides the postings it leaves out, with a switch to show them.
 
 **Important:** Also suggest role types the user may not have considered, based on their skill profile. For example:
 - If they have strong Python + domain expertise: "Have you considered roles like 'Technical Consultant' or 'Solutions Engineer' in your domain?"
