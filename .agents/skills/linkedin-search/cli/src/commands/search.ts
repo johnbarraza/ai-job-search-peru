@@ -5,6 +5,7 @@ import {
   parseJobCards,
   jobageToTPR,
   minutesToTPR,
+  stripInvisible,
   workTypeFlag,
   writeError,
   type JobCard,
@@ -62,7 +63,7 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
     // only when the search itself filtered on it (f_WT); otherwise "no declarado".
     const modality: Modality =
       ({ remote: "remoto", hybrid: "híbrido", onsite: "presencial" } as const)[opts.remote as "remote"] ?? "no declarado"
-    let cards = parseJobCards(html).map((c) => ({ ...c, modality, level: classifyLevel(c.title) }))
+    let cards = stripInvisible(parseJobCards(html)).map((c) => ({ ...c, modality, level: classifyLevel(c.title) }))
     if (opts.limit !== undefined && opts.limit >= 0) cards = cards.slice(0, opts.limit)
 
     if (opts.format === "table") {
