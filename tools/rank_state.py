@@ -445,7 +445,8 @@ def cmd_apply(args) -> int:
             errors.append({"key": key, "error": str(exc)})
             continue
         bad_gate = next(
-            (f for f in ("location_verdict", "language_gate") if result.get(f) and result[f] not in GATE_VERDICTS),
+            (f for f in ("location_verdict", "language_gate", "eligibility_gate")
+             if result.get(f) and result[f] not in GATE_VERDICTS),
             None,
         )
         if bad_gate:
@@ -484,6 +485,21 @@ def cmd_apply(args) -> int:
             entry.pop("language_note", None)
         else:
             entry["language_note"] = result.get("language_note")
+        # Formal minimum requirements need their own gate. A skills score cannot
+        # establish a credential, title or specific-experience requirement.
+        public_role = ("talento-peru" in str(entry.get("portal") or "")
+                       or "estado" in (entry.get("focus_tags") or []))
+        formal_gate = result.get("eligibility_gate") or ("FLAG" if public_role else None)
+        if formal_gate:
+            entry["eligibility_gate"] = formal_gate
+            if entry["eligibility_gate"] == "PASS":
+                entry.pop("eligibility_note", None)
+            else:
+                entry["eligibility_note"] = (result.get("eligibility_note")
+                                              or "Verificar en las bases oficiales los requisitos formales antes de postular.")
+        else:
+            entry.pop("eligibility_gate", None)
+            entry.pop("eligibility_note", None)
         # Absence is not a correction: a fetch that degraded to a listing page
         # returns no deadline, and blanking a stored one would erase a real
         # date and make the entry immortal to rule 6's sweep.
@@ -493,7 +509,7 @@ def cmd_apply(args) -> int:
         # of what the portal already reported.
         merge_vocab(entry, "modality", norm_modality(result.get("modality")))
         merge_vocab(entry, "level", norm_level(result.get("level")))
-        for field in ("strengths", "gaps"):
+        for field in ("strengths", "gaps", "warnings"):
             value = result.get(field)
             if isinstance(value, list):
                 entry[field] = [str(b) for b in value][:3]
@@ -530,6 +546,8 @@ def cmd_apply(args) -> int:
                 "location_verdict": entry["location_verdict"],
                 "language_gate": entry["language_gate"],
                 "language_note": entry.get("language_note"),
+                "eligibility_gate": entry.get("eligibility_gate"),
+                "eligibility_note": entry.get("eligibility_note"),
                 "deadline": entry.get("deadline"),
                 "posted_date": entry.get("posted_date"),
                 "urgent": bool(parsed and today <= parsed <= today + timedelta(days=URGENT_DAYS)),
@@ -543,7 +561,8 @@ def cmd_apply(args) -> int:
         save_state(args.state, doc)
 
     rows.sort(key=lambda r: (r["score"], r["urgent"]), reverse=True)
-    veto = lambda r: r["location_verdict"] == "FAIL" or r["language_gate"] == "FAIL"
+    veto = lambda r: (r["location_verdict"] == "FAIL" or r["language_gate"] == "FAIL"
+                      or r["eligibility_gate"] == "FAIL")
     vetoed = [r for r in rows if veto(r)]
     ranked = [r for r in rows if not veto(r)]
     print(

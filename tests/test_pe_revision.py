@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("pe_revision", REPO / "tools" / "pe_revision.py")
@@ -46,6 +47,28 @@ class Actions(unittest.TestCase):
         self.assertEqual(pr.action_for(ranked(rank_verdict="Weak Fit"), None), "descartar")
         self.assertEqual(pr.action_for(ranked(location_verdict="FAIL"), {"risk": "bajo", "window": "fresca"}), "descartar")
         self.assertEqual(pr.action_for(ranked(language_gate="FAIL"), None), "descartar")
+        self.assertEqual(pr.action_for(ranked(location_verdict="FLAG"), {"window": "fresca"}), "antes")
+
+    def test_formal_eligibility_overrides_freshness_and_an_imminent_deadline(self):
+        fresh = {"risk": "bajo", "window": "fresca"}
+        today = date(2026, 10, 25)
+        self.assertEqual(pr.action_for(ranked(eligibility_gate="FLAG", deadline="2026-10-28"), fresh, today), "antes")
+        self.assertEqual(pr.action_for(ranked(eligibility_gate="FAIL", deadline="2026-10-28"), fresh, today), "descartar")
+
+    def test_expired_public_role_remains_visible_as_closed(self):
+        today = date(2026, 10, 25)
+        archived = ranked(title="Asistente de difusión ONPE", company="ONPE", status="expired",
+                          deadline="2026-10-25", location_verdict="FAIL", focus_tags=["campo", "estado"],
+                          screening_note="Cumple estudios y experiencia; plazo vencido")
+        data = pr.collect({"seen": {"onpe": archived}}, [], Path(tempfile.mkdtemp()), today=today)
+        # Exact-hour deadlines need a separate status after 18:00; the status is
+        # authoritative even though an ISO date alone still reads as today.
+        self.assertEqual(data["ranked"][0]["action"], "cerrada")
+        page = pr.render(data, today, "César")
+        self.assertIn("Ver 1 convocatoria pública cerrada", page)
+        self.assertIn('id="sec-cerradas"', page)
+        self.assertIn("Asistente de difusión ONPE", page)
+        self.assertEqual(pr.export(data, today, "César")["cerradas"][0]["screening_note"], archived["screening_note"])
 
 
 class Ratings(unittest.TestCase):
@@ -69,6 +92,41 @@ class Ratings(unittest.TestCase):
 
 
 class Rendering(unittest.TestCase):
+    def test_servir_word_is_embedded_only_for_matching_public_posting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "reports" / "detalles"
+            folder.mkdir(parents=True)
+            (folder / "sv_0123456789abcdef.docx").write_bytes(b"PK\x03\x04public summary")
+            with patch.object(pr, "ROOT", Path(tmp)):
+                row = ranked(id="SERVIR:0123456789ABCDEF", portal="talento-peru-search")
+                self.assertIn("Descargar resumen (Word)", pr.word_html(row))
+                self.assertEqual(pr.word_html({**row, "id": "SERVIR:ffffffffffffffff"}), "")
+
+    def test_role_shortcuts_classify_field_work_without_sales_field_noise(self):
+        self.assertIn("campo", pr.role_tags(ranked(title="Encuestador de campo")))
+        self.assertIn("campo", pr.role_tags(ranked(title="Personal de campo para investigación de mercado")))
+        self.assertEqual(pr.role_tags(ranked(title="Supervisor de ventas de campo")), ["otros"])
+        self.assertEqual(pr.role_tags(ranked(title="Encuestador y vendedor de campo")), ["otros"])
+        self.assertIn("rrhh", pr.role_tags(ranked(title="Auxiliar de reclutamiento y selección")))
+        self.assertIn("practicas", pr.role_tags(ranked(title="Practicante de recursos humanos")))
+        self.assertIn("estado", pr.role_tags(ranked(portal="talento-peru-search")))
+
+    def test_role_shortcuts_are_counted_and_initial_focus_is_configurable(self):
+        seen = {"field": ranked(title="Encuestador de Campo"),
+                "hr": ranked(title="Asistente de Recursos Humanos", url="https://www.linkedin.com/jobs/view/4476949303")}
+        data = pr.collect({"seen": seen}, [], Path(tempfile.mkdtemp()))
+        data["nuevas"] = {"nuevas": [{"id": "SERVIR:123", "portal": "talento-peru",
+                                      "title": "Practicante de psicología", "company": "Municipalidad",
+                                      "url": "https://app.servir.gob.pe/"}]}
+        page = pr.render(data, date(2026, 10, 25), "César", initial_focus="campo")
+        self.assertIn('data-role-filter="campo" aria-pressed="false">Trabajo de campo<small>1</small>', page)
+        self.assertIn('data-role-filter="rrhh" aria-pressed="false">RR. HH.<small>1</small>', page)
+        self.assertIn('data-role-filter="estado" aria-pressed="false">Sector público<small>0</small>', page)
+        self.assertIn('data-show-portal="talento-peru">Ver 1 nueva de SERVIR sin evaluar', page)
+        self.assertIn('data-initial-focus="campo"', page)
+        self.assertIn('data-roles="campo"', page)
+        self.assertIn('data-roles="rrhh"', page)
+
     def build(self, seen, fresh=(), research=None):
         tmp = Path(tempfile.mkdtemp())
         research_dir = tmp / "company_research"
@@ -103,6 +161,22 @@ class Rendering(unittest.TestCase):
         self.assertIn("&lt;script&gt;", page)
         self.assertNotIn('href="javascript:', page)
         self.assertNotIn("<img src=x", page)
+
+    def test_pay_and_schedule_warnings_are_separate_from_fit_gaps(self):
+        row = ranked(gaps=[], warnings=["Confirmar horario y subvención"])
+        data, page = self.build({"k": row})
+        self.assertIn("Advertencias</h4>", page)
+        self.assertIn("Confirmar horario y subvención", page)
+        self.assertEqual(pr.export(data, date(2026, 10, 18), "Prueba")["para_decidir"][0]["warnings"],
+                         ["Confirmar horario y subvención"])
+
+    def test_public_posting_links_distinguish_secondary_card_from_entity_portal(self):
+        row = ranked(url="https://www.practicas.pe/oferta-123.html",
+                     official_link="https://www.perupetro.com.pe/trabaja", focus_tags=["estado"])
+        data, page = self.build({"k": row})
+        self.assertIn("Ver ficha de Prácticas.pe", page)
+        self.assertIn("Portal de la entidad", page)
+        self.assertIn("estado", pr.export(data, date(2026, 10, 18), "Prueba")["para_decidir"][0]["tags"])
 
     def test_order_sections_and_flow_counts(self):
         seen = {
@@ -402,6 +476,16 @@ class Carousel(unittest.TestCase):
 
 
 class Export(unittest.TestCase):
+    def test_formal_eligibility_note_is_visible_in_html_and_json(self):
+        row = ranked(eligibility_gate="FLAG", eligibility_note="El formulario pide universidad; ISIL es instituto.")
+        data = pr.collect({"seen": {"a": row}}, [], Path(tempfile.mkdtemp()), today=date(2026, 10, 25))
+        page = pr.render(data, date(2026, 10, 25), None)
+        self.assertIn("Elegibilidad por confirmar", page)
+        self.assertIn("ISIL es instituto", page)
+        exported = pr.export(data, date(2026, 10, 25), "César")["para_decidir"][0]
+        self.assertEqual(exported["eligibility_gate"], "FLAG")
+        self.assertIn("ISIL", exported["eligibility_note"])
+
     def test_the_json_twin_carries_the_rows_without_markup(self):
         data = pr.collect({"seen": {"a": ranked(deadline="2026-10-25", how_to_apply="Formulario")}}, [],
                           Path(tempfile.mkdtemp()), today=date(2026, 10, 24))
@@ -478,6 +562,18 @@ class SharedUrls(unittest.TestCase):
 
 
 class NewFromLastSearch(unittest.TestCase):
+    def test_registered_new_posts_remain_visible_until_reviewed_but_applied_do_not(self):
+        seen = {"new": {"id": "up:abc", "status": "new", "fit": None},
+                "applied": {"id": "up:def", "status": "applied", "fit": None}}
+        report = {"nuevas": [
+            {"id": "up:abc", "title": "Practicante de Research", "portal": "bolsa-universidad"},
+            {"id": "up:def", "title": "Practicante de Finanzas", "portal": "bolsa-universidad",
+             "already_applied": True}]}
+        html = pr.nuevas_html(report, seen)
+        self.assertIn("Practicante de Research", html)
+        self.assertIn("Ya postuladas en Bolsa UP (1): Practicante de Finanzas", html)
+        self.assertNotIn("Practicante de Finanzas", html.split('<tbody id="nrows">')[1])
+
     def test_lists_the_last_search_apart_minus_what_was_registered_since(self):
         seen = {"k": ranked(url=BM_SEARCH)}
         report = {"generated": "2026-10-25", "nuevas": [
@@ -495,6 +591,21 @@ class NewFromLastSearch(unittest.TestCase):
     def test_no_report_no_section(self):
         self.assertEqual(pr.nuevas_html(None, {}), "")
         self.assertEqual(pr.nuevas_html({"nuevas": []}, {}), "")
+
+    def test_servir_search_page_is_not_presented_as_a_posting_link(self):
+        listing = "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml"
+        direct = "https://postulacioncas.minedu.gob.pe/PostulacionCas/Home/Convocatoria/29820"
+        report = {"nuevas": [
+            {"id": "SERVIR:one", "portal": "talento-peru", "title": "Supervisor pedagógico", "url": listing,
+             "company": "MINEDU", "ref": "0665-2026"},
+            {"id": "SERVIR:two", "portal": "talento-peru", "title": "Especialista", "url": direct,
+             "company": "MINEDU", "ref": "0660-2026"},
+        ]}
+        html = pr.nuevas_html(report, {})
+        self.assertIn("<b>Supervisor pedagógico</b>", html)
+        self.assertNotIn(f'<a href="{listing}" target="_blank" rel="noopener noreferrer">Supervisor pedagógico</a>', html)
+        self.assertIn("Buscar en SERVIR", html)
+        self.assertIn(f'<a href="{direct}" target="_blank" rel="noopener noreferrer">Especialista</a>', html)
 
 
 if __name__ == "__main__":

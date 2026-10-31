@@ -62,6 +62,11 @@ class ScrapeSearchOutputContractTests(unittest.TestCase):
         contract = derive_contract_fields()
         failures: list[str] = []
         for portal in PORTAL_CLIS:
+            skill = portal / "SKILL.md"
+            if skill.exists() and re.search(r"^enabled:\s*false\s*$", skill.read_text(encoding="utf-8"), re.MULTILINE):
+                # /scrape excludes disabled portals; the authenticated Bolsa UP
+                # uses a separate Python workflow instead of the TS Step 2 CLI.
+                continue
             search_ts = portal / "cli" / "src" / "commands" / "search.ts"
             if not search_ts.exists():
                 # Prácticas.pe is a Python CLI shared by the profile and the

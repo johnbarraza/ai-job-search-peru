@@ -40,6 +40,7 @@ import argparse
 import glob
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -72,10 +73,11 @@ COVERAGE = SEARCH_DIR / "cobertura.json"
 REVIEW_JSON = Path("reports/revision-ofertas.json")
 # CLI portal -> (file prefix for searches, file prefix for details), as the earlier runs named them.
 PORTALS = {"linkedin": ("li", "li"), "bumeran": ("bu", "bm"), "computrabajo": ("ct", "ct"),
-           "talento-peru": ("sv", "sv"), "practicas-pe": ("pr", "pr")}
+           "talento-peru": ("sv", "sv"), "practicas-pe": ("pr", "pr"),
+           "bolsa-universidad": ("up", "up")}
 LINKEDIN_PAUSE = 6  # seconds between LinkedIn calls: it answers bursts with 429
 LINKEDIN_MAX_429 = 2  # consecutive 429s before the run stops asking LinkedIn
-PAGED = {"linkedin", "bumeran", "computrabajo"}  # CLIs that take --page
+PAGED = {"linkedin", "bumeran", "computrabajo", "bolsa-universidad"}  # CLIs that take --page
 MAX_PAGES = 10
 
 # Every portal the search covers. `cli` portals run in
@@ -85,8 +87,9 @@ REGISTRY = [
     {"id": "linkedin", "nombre": "LinkedIn Jobs", "metodo": "cli",
      "home": "https://www.linkedin.com/jobs/", "url": "https://www.linkedin.com/jobs/search/?keywords={q}&location=Lima%2C%20Peru",
      "nota": "Prácticas y analistas junior en bancos, consultoras y grandes empresas. Limita ráfagas (429)."},
-    {"id": "bolsa-universidad", "nombre": "Bolsa de tu universidad", "metodo": "manual", "home": None, "url": None,
-     "nota": "Con tu cuenta de estudiante; exige iniciar sesión. Pon su URL en consultas.json → portales."},
+    {"id": "bolsa-universidad", "nombre": "Bolsa UP (Symplicity)", "metodo": "manual",
+     "home": "https://up-csm.symplicity.com/students/app/jobs/search?perPage=20&page=1&sort=%21postdate", "url": None,
+     "nota": "Con tu cuenta UP. CLI local optativo: login manual en Chrome, sesión temporal fuera de Git."},
     {"id": "talento-peru", "nombre": "Talento Perú (SERVIR)", "metodo": "cli",
      "home": "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/ofertas_laborales.xhtml", "url": None,
       "nota": "Ministerios, reguladores y entidades públicas (CAS y prácticas). Búsqueda por formulario JSF."},
@@ -98,16 +101,19 @@ REGISTRY = [
      "nota": "Empresas privadas: administración, finanzas y análisis. Resultados por JavaScript: sin CLI todavía; o jev-search."},
     {"id": "indeed", "nombre": "Indeed Perú", "metodo": "manual",
      "home": "https://pe.indeed.com/", "url": "https://pe.indeed.com/jobs?q={q}&l=Lima",
-     "nota": "Vacantes de muchas empresas y portales. Búsqueda manual; sus términos restringen la extracción automática."},
+     "nota": "Vacantes de muchas empresas y portales. Enlace manual; JobSpy permite una consulta opcional de Indeed Perú (ver docs/PORTALES.md)."},
     {"id": "glassdoor", "nombre": "Glassdoor Perú", "metodo": "manual",
-     "home": "https://www.glassdoor.com/Job/lima-practicante-jobs-SRCH_IL.0%2C4_IC3033968_KO5%2C16.htm", "url": None,
-     "nota": "Ofertas y reseñas de empresas en Lima. Abre la búsqueda y cambia las palabras clave allí; JobSpy no declara soporte para Glassdoor Perú."},
+     "home": "https://www.glassdoor.com/", "url": None,
+     "nota": "Ofertas, sueldos y reseñas. Busca Lima dentro del portal; JobSpy no declara soporte para Glassdoor Perú."},
     {"id": "computrabajo", "nombre": "Computrabajo", "metodo": "cli",
      "home": "https://pe.computrabajo.com/", "url": "https://pe.computrabajo.com/trabajo-de-{qs}-en-lima",
      "nota": "Mucho volumen; hay que filtrar bastante."},
     {"id": "empleos-peru", "nombre": "Empleos Perú (MTPE)", "metodo": "manual",
      "home": "https://www.empleosperu.gob.pe/portal-mtpe/", "url": None,
      "nota": "Bolsa pública del Ministerio de Trabajo. Búsqueda dentro del portal; o jev-search."},
+    {"id": "onpe", "nombre": "Convocatorias ONPE", "metodo": "manual",
+     "home": "https://reclutamiento.onpe.gob.pe/convocatorias", "url": None,
+     "nota": "Procesos electorales y trabajo de campo. El portal exige iniciar sesión; verifica provincia y plazo en cada convocatoria."},
     {"id": "practicas-pe", "nombre": "Prácticas.pe", "metodo": "cli",
      "home": "https://www.practicas.pe/", "url": "https://www.practicas.pe/resultados-busqueda.php?q={q}&dep=15",
      "nota": "Prácticas públicas y privadas, con ficha y fecha de postulación cuando se publica."},
@@ -119,6 +125,8 @@ def slug(text: str) -> str:
 
 
 def cli(portal: str) -> list[str]:
+    if portal == "bolsa-universidad":
+        return [sys.executable, str(TOOLS / "pe_symplicity.py")]
     if portal == "talento-peru":
         return [sys.executable, str(TOOLS / "pe_servir.py")]
     if portal == "practicas-pe":
@@ -132,7 +140,8 @@ def cli(portal: str) -> list[str]:
 def run_json(cmd: list[str], out: Path | None = None, timeout: int = 180) -> tuple[object, str | None]:
     """Run a portal CLI and keep its stdout as a file. Returns (parsed JSON, None) or (None, error)."""
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=timeout,
+                              env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, str(exc)[:200]
     if proc.returncode != 0:
@@ -178,6 +187,8 @@ def registry(cfg: dict) -> list[dict]:
     for p in cfg.get("portales") or []:
         if isinstance(p, dict) and p.get("id"):
             out[p["id"]] = {**out.get(p["id"], {}), **p}
+    if any(c.get("portal") == "bolsa-universidad" for c in cfg.get("consultas") or []):
+        out["bolsa-universidad"]["metodo"] = "cli"
     return list(out.values())
 
 
@@ -275,6 +286,9 @@ def cmd_buscar(args) -> int:
     jobage = args.jobage or cfg.get("jobage")
     exclude = [w.lower() for w in cfg.get("excluir_titulo") or []]
     queries = [c for c in cfg["consultas"] if c.get("portal") in PORTALS and (not args.portal or c["portal"] == args.portal)]
+    if any(c["portal"] == "bolsa-universidad" for c in queries) and not cfg.get("symplicity_account"):
+        print('falta "symplicity_account" en consultas.json para la Bolsa UP (ejemplo: "mi-cuenta")', file=sys.stderr)
+        return 1
     today = date.today().isoformat()
     run_dir = SEARCH_DIR / datetime.now().strftime("%Y-%m-%d_%H%M%S")
     suffix = 2
@@ -290,11 +304,13 @@ def cmd_buscar(args) -> int:
         portal, run = c["portal"], runs[c["portal"]]
         place = c.get("l") or ""
         cmd = cli(portal) + ["search"]
+        if portal == "bolsa-universidad":
+            cmd += ["--account", cfg["symplicity_account"]]
         if c.get("q"):
             cmd += ["-q", c["q"]]
-        if place:
+        if place and portal != "bolsa-universidad":
             cmd += ["-l", place]
-        if jobage and portal != "practicas-pe":
+        if jobage and portal not in ("practicas-pe", "bolsa-universidad"):
             cmd += ["--jobage", str(jobage)]
         if portal == "talento-peru" and c.get("tipo"):
             cmd += ["--tipo", c["tipo"]]
@@ -360,6 +376,7 @@ def cmd_buscar(args) -> int:
                 continue
             new[pid] = {"id": pid, "portal": portal, "title": p.get("title"), "company": p.get("company"),
                         "location": p.get("location"), "date": p.get("date"), "url": p.get("url"),
+                        "search_url": p.get("search_url"),
                         "modality": p.get("modality") or ("remoto" if remote == "remote" else None),
                          "level": p.get("level"), "query": c.get("q"), "detail": None,
                          "deadline": p.get("deadline"), "validThrough": p.get("validThrough"),
@@ -368,15 +385,37 @@ def cmd_buscar(args) -> int:
 
     if args.detalle:
         for j, p in enumerate(new.values(), 1):
-            out = DETAIL_DIR / f'{PORTALS[p["portal"]][1]}_{slug(p["id"])}.json'
-            if not out.is_file():
+            if p["portal"] == "bolsa-universidad":
+                ident = p["id"].split(":", 1)[-1].lower()
+                out = DETAIL_DIR / f"up_{ident}.json"
+                try:
+                    detail = json.loads(out.read_text(encoding="utf-8"))
+                    if not isinstance(detail, dict) or not detail.get("description"):
+                        raise ValueError("ficha incompleta")
+                except (OSError, ValueError):
+                    print(f"detalle {j}/{len(new)}: {p['title']}")
+                    detail, error = run_json(cli(p["portal"]) + ["detail", p["id"], "--account", cfg["symplicity_account"]], out)
+                    if error:
+                        runs[p["portal"]]["errores"].append(f"detalle {p['id']}: {error}")
+                        continue
+                p["detail"] = str(out).replace("\\", "/")
+                p["requirements"] = detail.get("description") or p.get("requirements")
+                p["deadline"] = detail.get("deadline") or p.get("deadline")
+                p["modality"] = (detail.get("modality") or p.get("modality") or "").lower() or None
+                p["level"] = detail.get("job_type") or p.get("level")
+                p["academic_level"] = detail.get("academic_level")
+                continue
+            ident = p["id"].split(":", 1)[-1].lower() if p["portal"] == "talento-peru" else slug(p["id"])
+            out = DETAIL_DIR / f'{PORTALS[p["portal"]][1]}_{ident}.json'
+            if not out.is_file() or (p["portal"] == "talento-peru" and "description" not in json.loads(out.read_text(encoding="utf-8"))):
                 print(f"detalle {j}/{len(new)}: {p['title']}")
                 if p["portal"] == "linkedin":
                     time.sleep(LINKEDIN_PAUSE)
                 if p["portal"] == "talento-peru":
-                    out.parent.mkdir(parents=True, exist_ok=True)
-                    out.write_text(json.dumps(p, ensure_ascii=False, indent=1), encoding="utf-8")
-                    error = None
+                    detail, error = run_json(cli(p["portal"]) + ["detail", p["id"], "--titulo", p["title"],
+                                               "--tipo", p["type"], "--ref", p.get("ref") or ""], out)
+                    if not error and isinstance(detail, dict):
+                        p["requirements"] = detail.get("description")
                 else:
                     detail, error = run_json(cli(p["portal"]) + ["detail", p["url"] or p["id"]], out)
                     if not error and p["portal"] == "practicas-pe" and isinstance(detail, dict):
@@ -387,8 +426,21 @@ def cmd_buscar(args) -> int:
                     continue
             p["detail"] = str(out).replace("\\", "/")
 
+    applied_ids = set()
+    if "bolsa-universidad" in runs:
+        applications, error = run_json(cli("bolsa-universidad") + ["applications", "--account", cfg["symplicity_account"]],
+                                       run_dir / "up_solicitudes.json")
+        if error:
+            runs["bolsa-universidad"]["errores"].append("Solicitudes: " + error)
+        else:
+            applied_ids = {pe_frescura.posting_id(p) for p in applications.get("results") or []}
+            for p in new.values():
+                if p["portal"] == "bolsa-universidad":
+                    p["already_applied"] = p["id"] in applied_ids
+
     report = {"generated": today, "jobage": jobage, "consultas": len(queries), "extranjero": abroad["mode"],
               "excluidas_por_titulo": excluded,
+              "ya_postuladas_bolsa_up": sum(bool(p.get("already_applied")) for p in new.values()),
               "nuevas": sorted(new.values(), key=lambda p: p.get("date") or "", reverse=True)}
     SEARCH_DIR.mkdir(parents=True, exist_ok=True)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -400,29 +452,50 @@ def cmd_buscar(args) -> int:
     write_coverage(cfg, runs, today)
     shutil.copyfile(COVERAGE, run_dir / "cobertura.json")
 
-    if args.registrar and new:
+    if args.registrar:
         seen = state.setdefault("seen", {})
         for p in new.values():
-            key = ("servir_" + p["id"].split(":", 1)[-1] if p["portal"] == "talento-peru"
+            key = ("up_" + p["id"].split(":", 1)[-1].lower() if p["portal"] == "bolsa-universidad" else
+                   "servir_" + p["id"].split(":", 1)[-1] if p["portal"] == "talento-peru"
                    else "practicas_" + p["id"] if p["portal"] == "practicas-pe"
                    else job_key.make_key(p.get("company") or "", p.get("title") or "", p.get("url") or ""))
             seen.setdefault(key, {
-                "id": p["id"], "title": p.get("title"), "company": p.get("company"), "url": p.get("url"), "location": p.get("location"),
+                "id": p["id"], "title": p.get("title"), "company": p.get("company"), "url": p.get("url"),
+                "search_url": p.get("search_url"), "ref": p.get("ref"), "location": p.get("location"),
                 "first_seen": today, "posted_date": p.get("date"), "deadline": p.get("deadline"),
                 "validThrough": p.get("validThrough"),
-                "fit": None, "status": "new", "portal": f'{p["portal"]}-search', "source": "cli",
+                "fit": None, "status": "applied" if p.get("already_applied") else "new",
+                "portal": f'{p["portal"]}-search', "source": "cli",
                 "modality": p.get("modality"), "level": p.get("level"), "detail": p.get("detail"),
-                "how_to_apply": f'Busca la convocatoria {p["ref"]} en SERVIR y descarga el Word para verificar bases y plazo.'
-                if p["portal"] == "talento-peru" else None,
+                "academic_level": p.get("academic_level"),
+                "how_to_apply": f'Busca la convocatoria {p["ref"]} en SERVIR; abre «Ver más» y comprueba las bases y el plazo en la entidad.'
+                if p["portal"] == "talento-peru" else
+                'Abre la ficha en la Bolsa UP con tu sesión y comprueba requisitos y plazo antes de postular.'
+                if p["portal"] == "bolsa-universidad" else None,
             })
-        args.state.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+        applied_changed = False
+        if applied_ids:
+            for entry in seen.values():
+                if isinstance(entry, dict) and pe_frescura.posting_id(entry) in applied_ids:
+                    if entry.get("status") == "new":
+                        entry["status"] = "applied"
+                        applied_changed = True
+                    if entry.get("application_status") != "applied":
+                        entry["application_status"] = "applied"
+                        applied_changed = True
+                    if entry.get("application_source") != "bolsa-up-solicitudes":
+                        entry["application_source"] = "bolsa-up-solicitudes"
+                        applied_changed = True
+        if new or applied_changed:
+            args.state.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
     for portal, run in sorted(runs.items()):
         print(f"{portal}: {run['ok']}/{run['consultas']} consultas ok · {run['resultados']} resultados"
               + (f" · {run['fallidas']} fallidas" if run["fallidas"] else ""))
     if skipped_abroad:
         print(f"{skipped_abroad} consultas fuera del Perú omitidas: el perfil no pide buscar en el extranjero (línea Abroad)")
-    print(f"\n{len(new)} nuevas (no estaban en {args.state}) · {excluded} excluidas por título"
+    print(f"\n{len(new)} detectadas (no estaban en {args.state}) · "
+          f"{report['ya_postuladas_bolsa_up']} ya postuladas en Bolsa UP · {excluded} excluidas por título"
           f" → {SEARCH_DIR / 'nuevas.json'}" + (" · registradas como 'new'" if args.registrar and new else ""))
     print(f"Copia de esta corrida: {run_dir}")
     print(f"Cobertura y enlaces de portales: {COVERAGE} (python tools/pe_pipeline.py portales)")
@@ -467,7 +540,8 @@ def step(label: str, cmd: list[str], out: Path | None = None) -> bool:
 
 def cmd_actualizar(args) -> int:
     py = [sys.executable, "-X", "utf8"]
-    write_coverage(load_config(args.consultas))
+    config = load_config(args.consultas)
+    write_coverage(config)
     details = sorted(glob.glob(str(DETAIL_DIR / "*.json")))
     today = ["--today", args.today.isoformat()]
     ok = True
@@ -486,9 +560,11 @@ def cmd_actualizar(args) -> int:
     else:
         print(f"· sin detalles en {DETAIL_DIR}: salto duplicados, frescura y lugar")
     title = ["--titulo", args.titulo] if args.titulo else []
-    ok &= step("Página de revisión", py + [str(TOOLS / "pe_revision.py"), *title, *today, "--json", str(REVIEW_JSON)])
+    initial_focus = args.filtro_inicial or config.get("filtro_inicial")
+    focus = ["--filtro-inicial", initial_focus] if initial_focus else []
+    ok &= step("Página de revisión", py + [str(TOOLS / "pe_revision.py"), *title, *focus, *today, "--json", str(REVIEW_JSON)])
     if args.artifact:
-        ok &= step("Copia para claude.ai", py + [str(TOOLS / "pe_revision.py"), *title, *today, "--artifact",
+        ok &= step("Copia para claude.ai", py + [str(TOOLS / "pe_revision.py"), *title, *focus, *today, "--artifact",
                                                  "--out", "reports/revision-ofertas-artifact.html",
                                                  "--cv-manifest", "reports/cv_manifest.json"])
     print()
@@ -553,6 +629,8 @@ def main(argv=None) -> int:
     a = sub.add_parser("actualizar", help="coverage, duplicates, freshness, place and the review page")
     a.add_argument("--consultas", type=Path, default=SEARCH_DIR / "consultas.json")
     a.add_argument("--titulo", help="name in the page heading")
+    a.add_argument("--filtro-inicial", choices=("campo", "rrhh", "practicas", "estado", "otros"),
+                   help="role shortcut selected when the page first opens")
     a.add_argument("--logos", action="store_true", help="also download missing employer logos (network)")
     a.add_argument("--artifact", action="store_true", help="also write the claude.ai copy and its CV manifest")
     a.add_argument("--today", type=date.fromisoformat, default=date.today())

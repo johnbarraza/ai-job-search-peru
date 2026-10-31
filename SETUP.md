@@ -26,7 +26,7 @@ On Windows, `py --version` is often the most reliable check. If your system expo
 
 ### Bun (for job search tools)
 
-The job portal CLIs (four Danish portals plus the country-agnostic `linkedin-search` and `freehire-search` tools) are written in TypeScript and run with Bun.
+LinkedIn, Bumeran, Computrabajo and Get on Board have TypeScript CLIs that run with Bun. SERVIR and Prácticas.pe use Python; the authenticated Bolsa UP route uses Playwright only when a profile opts in. See [docs/PORTALES.md](docs/PORTALES.md).
 
 - macOS/Linux:
 
@@ -166,9 +166,9 @@ If a command still uses `pdftotext -layout`, it must pass `-enc UTF-8` as well. 
 ## 2. Fork and clone
 
 ```bash
-gh repo fork MadsLorentzen/ai-job-search --clone
-cd ai-job-search
-gh repo set-default <your-github-username>/ai-job-search
+gh repo fork johnbarraza/ai-job-search-peru --clone
+cd ai-job-search-peru
+gh repo set-default <your-github-username>/ai-job-search-peru
 ```
 
 Or manually: fork on GitHub, then clone your fork.
@@ -200,7 +200,7 @@ It runs `bun install` in every portal CLI under `.agents/skills/*/cli/` - discov
 
 For `linkedin-search` and `freehire-search` the install is optional: both have zero runtime dependencies and run with plain `bun`; `bun install` only pulls TypeScript dev types.
 
-If you're outside Denmark, you can generate an equivalent search skill for your local job board with `/add-portal` — it scaffolds the same CLI structure for any public portal and test-runs a live query before registering. See the "Job search tools" section in the README.
+Para incorporar un portal peruano adicional, consulta [docs/PORTALES.md](docs/PORTALES.md) y usa `/add-portal` si corresponde una CLI pública.
 
 ## 4. Run the setup interview
 
@@ -210,11 +210,13 @@ Start Claude Code in the repository:
 claude
 ```
 
-Then run the onboarding:
+For a personal search on this public fork, create an ignored profile worktree:
 
 ```
-/setup
+/setup --user <nombre>
 ```
+
+Afterward, open Claude Code inside `perfiles/<nombre>`; the paths below are relative to that profile. Running `/setup` without `--user` edits the tracked repository root.
 
 Claude will offer three paths:
 
@@ -307,10 +309,10 @@ Upstream keeps improving the methodology files your fork has personalized, so pl
 
 **Prefer releases over raw `master`.** Tagged [releases](../../releases) are vetted checkpoints, each described in [CHANGELOG.md](CHANGELOG.md). Updating to a tag pulls a stable, documented state instead of whatever `master` happens to be mid-review. Fetch tags with `git fetch upstream --tags` and merge a release (for example `git merge v1.0.0`) when you want stability; pull `master` directly only when you specifically want the latest unreleased changes. The steps below apply either way - substitute the release tag for `upstream/master` where you see it.
 
-1. **Commit your personalization - but know where those commits land.** `/setup` edits CLAUDE.md and the profile skill files in place; those edits are *yours*, and committing them is what lets updates merge cleanly. But a GitHub **fork of this repo is public** - forks of public repositories cannot be made private - so anything you commit *and push to a fork* is visible to anyone. If you want your profile in a remote at all, don't push it to a fork: create a **private** repository, push there, and add this repo as the `upstream` remote (`git remote add upstream https://github.com/MadsLorentzen/ai-job-search.git`) to keep receiving updates. Committing locally without pushing is also fine. The genuinely sensitive files (tracker, salary data, `documents/`, application archives) are gitignored and never enter git either way. An uncommitted working tree is the most common reason `git pull` refuses to merge at all (`Your local changes ... would be overwritten`).
+1. **Commit your personalization - but know where those commits land.** `/setup` edits CLAUDE.md and the profile skill files in place; those edits are *yours*, and committing them is what lets updates merge cleanly. But a GitHub **fork of this repo is public** - forks of public repositories cannot be made private - so anything you commit *and push to a fork* is visible to anyone. If you want your profile in a remote at all, don't push it to a fork: create a **private** repository, push there, and add this repo as the `upstream` remote (`git remote add upstream https://github.com/johnbarraza/ai-job-search-peru.git`) to keep receiving updates. Committing locally without pushing is also fine. The genuinely sensitive files (tracker, salary data, `documents/`, application archives) are gitignored and never enter git either way. An uncommitted working tree is the most common reason `git pull` refuses to merge at all (`Your local changes ... would be overwritten`).
 2. **Preview what changed before pulling:**
    ```bash
-   git remote add upstream https://github.com/MadsLorentzen/ai-job-search.git   # first time only, if you cloned your own fork
+   git remote add upstream https://github.com/johnbarraza/ai-job-search-peru.git   # first time only, if you cloned your own fork
    git fetch upstream    # or origin, if you cloned the template directly
    python3 tools/check_upstream_updates.py
    ```

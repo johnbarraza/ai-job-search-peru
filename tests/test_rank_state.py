@@ -551,6 +551,31 @@ class Apply(RankStateCase):
         )
         self.assertNotIn("language_note", self.read_state()["a"])
 
+    def test_formal_eligibility_is_persisted_and_vetoes_only_when_failed(self):
+        self.write_state({"a": entry(), "b": entry(), "c": entry()})
+        scores = {name: 90 for name in ("technical", "experience", "behavioral", "career")}
+        rows = [
+            {"key": "a", "status": "scored", "scores": scores, "eligibility_gate": "FAIL",
+             "eligibility_note": "Requiere título universitario; solo egresado técnico"},
+            {"key": "b", "status": "scored", "scores": scores, "eligibility_gate": "FLAG",
+             "eligibility_note": "Formulario pide Universidad; afiche solo egresado"},
+            {"key": "c", "status": "scored", "scores": scores, "eligibility_gate": "PASS"},
+        ]
+        out = self.run_tool("apply", "--results", self.results(rows))
+        self.assertEqual([row["key"] for row in out["vetoed"]], ["a"])
+        self.assertEqual({row["key"] for row in out["ranked"]}, {"b", "c"})
+        self.assertEqual(self.read_state()["b"]["eligibility_gate"], "FLAG")
+        self.assertIn("Universidad", self.read_state()["b"]["eligibility_note"])
+        self.assertNotIn("eligibility_note", self.read_state()["c"])
+
+    def test_public_role_without_formal_check_requires_confirmation(self):
+        self.write_state({"a": entry(portal="talento-peru-search")})
+        scores = {name: 90 for name in ("technical", "experience", "behavioral", "career")}
+        self.run_tool("apply", "--results", self.results([{"key": "a", "status": "scored", "scores": scores}]))
+        row = self.read_state()["a"]
+        self.assertEqual(row["eligibility_gate"], "FLAG")
+        self.assertIn("bases oficiales", row["eligibility_note"])
+
     def test_strengths_and_gaps_are_capped_and_stored_verbatim(self):
         self.write_state({"a": entry()})
         self.run_tool(
@@ -564,12 +589,14 @@ class Apply(RankStateCase):
                         "scores": {"technical": 50, "experience": 50, "behavioral": 50, "career": 50},
                         "strengths": ["one", "two", "three", "four"],
                         "gaps": ["<script>not sanitized on purpose, stored as plain data</script>"],
+                        "warnings": ["Confirmar horario y subvención"],
                     }
                 ]
             ),
         )
         stored = self.read_state()["a"]
         self.assertEqual(len(stored["strengths"]), 3, "at most 3 bullets, matching the spec")
+        self.assertEqual(stored["warnings"], ["Confirmar horario y subvención"])
         self.assertEqual(
             stored["gaps"],
             ["<script>not sanitized on purpose, stored as plain data</script>"],
@@ -861,7 +888,8 @@ class Unreachable(RankStateCase):
 
     def test_an_unknown_gate_verdict_is_an_error_not_a_shortlisted_job(self):
         scores = {dimension: 90 for dimension in ("technical", "experience", "behavioral", "career")}
-        for field, value in (("location_verdict", "Fail"), ("language_gate", "fail"), ("location_verdict", "REJECT")):
+        for field, value in (("location_verdict", "Fail"), ("language_gate", "fail"),
+                             ("eligibility_gate", "UNKNOWN"), ("location_verdict", "REJECT")):
             with self.subTest(field=field, value=value):
                 self.write_state({"a": entry()})
                 result = {"key": "a", "status": "scored", "scores": scores, field: value}

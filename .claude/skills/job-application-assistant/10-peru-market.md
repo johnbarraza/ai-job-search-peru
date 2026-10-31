@@ -20,12 +20,12 @@ coinciden, manda la más reciente con fuente.
 | **Bumeran Perú** | Empresas grandes y medianas, analistas, practicantes, entrada | CLI `bumeran-search` (filtros de región, distrito, modalidad, nivel y antigüedad del lado del servidor) |
 | **Computrabajo Perú** | El mayor volumen; todos los sectores y regiones; publica sueldo a veces | CLI `computrabajo-search` (distritos de Lima/Callao resueltos solos) |
 | **Get on Board** | Datos, analytics, tecnología, startups; remotos abiertos a Perú | CLI `getonboard-search -l Peru` |
-| **Bolsa de la universidad** (p. ej. Red Alumni UP) | Prácticas dirigidas a estudiantes/egresados de esa universidad | Requiere login: alertas por correo + `/apply`, o `jev-search --site url --url <bolsa>` tras iniciar sesión a mano una vez en su perfil de Chrome |
-| **Talento Perú (SERVIR)** | Todo el empleo y las prácticas del Estado (CAS, 728, servicio civil) | App con estado y WAF, sin URLs estables: `jev-search --site talentoperu` (navegador real, opcional y de pago) o búsqueda web `site:` |
-| **Prácticas.pe** | Agregador de convocatorias de prácticas, sobre todo del Estado | Búsqueda web `site:practicas.pe` |
+| **Bolsa UP (Symplicity)** | Prácticas y empleos para estudiantes/egresados UP | CLI local `tools/pe_symplicity.py` con inicio de sesión humano; búsqueda y solicitudes en `tools/pe_pipeline.py`; [guía](../../../docs/SYMPLICITY.md). Otras bolsas universitarias requieren su propia integración. |
+| **Talento Perú (SERVIR)** | Empleo y prácticas del Estado (CAS, 728, servicio civil) | CLI `tools/pe_servir.py` para buscar y leer «Ver más»; verificar el plazo en la entidad, porque el fin de publicación no siempre es el de postulación. |
+| **Prácticas.pe** | Agregador de convocatorias de prácticas, sobre todo del Estado | CLI `tools/pe_practicas.py`; confirmar requisitos y plazo con la entidad. |
 | **Empleos Perú (MTPE)** | Bolsa oficial del Ministerio de Trabajo | Búsqueda web; volumen bajo para perfiles profesionales |
 | **Laborum Perú** | Corporativo y administrativo | Otra plataforma (no Navent): búsqueda web `site:laborum.pe` |
-| **Indeed Perú** | Agregador | `robots.txt` bloquea `/jobs/PE/` y la búsqueda está protegida: solo búsqueda web o alertas por correo |
+| **Indeed Perú** | Agregador | Enlace manual; JobSpy es consulta opcional, fuera de las corridas automáticas. |
 
 Notas:
 - **Agencias de selección.** Muchas ofertas en Bumeran/Computrabajo las publica una
@@ -274,6 +274,20 @@ El tiempo de traslado en Lima pesa más que la distancia. Para el criterio de ub
   `source`, `fetched`). La página de revisión muestra, en cada oferta, a quienes comparten el
   área del puesto (jefes primero), con su página oficial y una búsqueda en LinkedIn. Nunca
   descargues perfiles de LinkedIn: solo enlaces de búsqueda que el candidato abre con su cuenta.
+
+## 8a. Requisitos formales del sector público
+
+Para CAS, prácticas y otras convocatorias públicas, leer las bases oficiales o el detalle
+«Ver más» de SERVIR antes de recomendar postular. Separar *estudiante universitario*,
+*egresado técnico*, *titulado técnico*, *egresado universitario*, *bachiller* y
+*titulado universitario*. No convertir egreso técnico en grado universitario ni estudios
+universitarios en curso en un título. Comparar también la carrera admitida, los meses de
+experiencia general y específica, y los documentos probatorios. Un requisito obligatorio
+incumplido se registra `eligibility_gate: FAIL`; si falta el texto de bases o no está clara
+la equivalencia admitida, `FLAG` con la pregunta exacta; `PASS` solo con evidencia de todos
+los mínimos. El puntaje de encaje no levanta ese filtro. Los requisitos «deseables» son
+preferencias, no un motivo de descarte. En prácticas, comprobar el régimen de la entidad:
+la empresa estatal puede seguir normas distintas de una municipalidad.
 
 ## 9. Programas de extensión universitaria y cursos de extensión
 

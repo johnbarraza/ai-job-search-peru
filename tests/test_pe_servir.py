@@ -23,6 +23,15 @@ def page(form, kind, page_number, total, view):
 
 
 class Servir(unittest.TestCase):
+    def test_detail_reads_requirements_and_official_contact(self):
+        html = '''<div class="cuadro-seccion"><p>REQUERIMIENTO:</p>
+        <span>Estudiante de Psicología</span><a href="https://muni.gob.pe/convocatoria/8">Bases</a></div>
+        <div class="cuadro-seccion">Contacto: empleo@muni.gob.pe</div>'''
+        result = servir.parse_detail(html)
+        self.assertIn("Estudiante de Psicología", result["description"])
+        self.assertEqual(result["official_links"], ["https://muni.gob.pe/convocatoria/8"])
+        self.assertEqual(result["contact"], "empleo@muni.gob.pe")
+
     def test_both_listing_types_keep_portal_expiry_separate_from_deadline(self):
         for kind, (_, form, _) in servir.KINDS.items():
             rows, paging, nxt, view = servir.parse_rows(page(form, kind, 1, 2, "v1"), kind, "https://example.org")
@@ -30,6 +39,8 @@ class Servir(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["date"], "2026-10-20")
             self.assertEqual(rows[0]["validThrough"], "2026-10-30")
+            self.assertIsNone(rows[0]["url"])
+            self.assertEqual(rows[0]["search_url"], "https://example.org")
             self.assertNotIn("deadline", rows[0])
             self.assertEqual(rows[0]["ref"], "123 - 2026")
 
@@ -107,6 +118,22 @@ class Servir(unittest.TestCase):
             servir.search_kind, servir.robots_check.gate = old_kind, old_gate
         self.assertEqual(calls, [("laboral", 3), ("practicas", 3)])
         self.assertEqual(len(out["results"]), 6)
+
+    def test_only_verified_official_links_become_posting_urls(self):
+        import json
+        import tempfile
+        from unittest.mock import patch
+
+        link = "https://postulacioncas.minedu.gob.pe/PostulacionCas/Home/Convocatoria/29820"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "links.json"
+            path.write_text(json.dumps({"SERVIR:ABC": link}), encoding="utf-8")
+            with patch.object(servir, "OFFICIAL_LINKS", path), patch.object(servir.robots_check, "gate", return_value=(0, "")), \
+                 patch.object(servir, "search_kind", return_value=[{"id": "servir:abc", "url": None},
+                                                                 {"id": "servir:other", "url": None}]):
+                rows = servir.search("", kind="laboral")["results"]
+        self.assertEqual(rows[0]["url"], link)
+        self.assertIsNone(rows[1]["url"])
 
 
 if __name__ == "__main__":

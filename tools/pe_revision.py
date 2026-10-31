@@ -64,6 +64,26 @@ def esc(value) -> str:
     return html.escape("" if value is None else str(value), quote=True)
 
 
+def role_tags(r: dict) -> list[str]:
+    """Small, conservative title-based shortcuts; a tag is not an eligibility verdict."""
+    title = unicodedata.normalize("NFKD", r.get("title") or "").encode("ascii", "ignore").decode().lower()
+    tags = [tag for tag in (r.get("focus_tags") or []) if tag in ("campo", "rrhh", "practicas", "estado", "otros")]
+    if str(r.get("portal") or "").startswith("talento-peru"):
+        tags.append("estado")
+    if (not any(word in title for word in ("vendedor", "venta de campo", "mercaderista", "promotor de credito"))
+            and any(word in title for word in ("encuest", "cens", "investigacion de mercado", "cliente incognito",
+                                               "mystery shopper", "experiencia en campo", "personal de campo"))):
+        tags.append("campo")
+    if any(word in title for word in ("recursos humanos", "rrhh", "rr. hh", "reclut", "seleccion",
+                                       "talento humano", "gestion humana", "atraccion del talento",
+                                       "gestion del talento", "capital humano", "clima y cultura", "psicologia organizacional",
+                                       "experiencia en campo")):
+        tags.append("rrhh")
+    if "practic" in title or "práctica" in (r.get("level") or "").lower():
+        tags.append("practicas")
+    return list(dict.fromkeys(tags)) or ["otros"]
+
+
 def link(url, text) -> str:
     if isinstance(url, str) and re.match(r"^https?://", url):
         return f'<a href="{esc(url)}" target="_blank" rel="noopener noreferrer">{esc(text)}</a>'
@@ -100,12 +120,14 @@ def action_for(entry: dict, fresh: dict | None, today: date | None = None) -> st
     """The next step for a posting, from its /rank verdict, its freshness risk and a close deadline."""
     if entry.get("application_status") == "applied":
         return "postulada"
-    if entry.get("location_verdict") == "FAIL" or entry.get("language_gate") == "FAIL":
+    days = deadline_info(entry, today).get("days") if today else None
+    if entry.get("status") == "expired" or (days is not None and days < 0):
+        return "cerrada"  # its stated deadline passed: nothing left to decide
+    if any(entry.get(gate) == "FAIL" for gate in ("location_verdict", "language_gate", "eligibility_gate")):
         return "descartar"
     verdict = entry.get("rank_verdict")
-    days = deadline_info(entry, today).get("days") if today else None
-    if days is not None and days < 0:
-        return "cerrada"  # its stated deadline passed: nothing left to decide
+    if entry.get("location_verdict") == "FLAG" or entry.get("eligibility_gate") == "FLAG":
+        return "antes"  # resolve a location or formal requirement before recommending an application
     if verdict in SHORTLIST:
         if days is not None and 0 <= days <= URGENT_DAYS:
             return "ya"  # a stated deadline is a live process: no time to confirm first
@@ -297,6 +319,25 @@ def cv_html(r: dict) -> str:
     name = r.get("cv_name") or href.rsplit("/", 1)[-1]
     return (f'<div class="cvrow"><a class="btn-cv" href="{esc(href)}" download="{esc(name)}" data-file="{esc(name)}" '
              f'target="_blank" rel="noopener noreferrer" title="CV sugerido para este puesto · descargar {esc(name)}">CV sugerido</a></div>')
+
+
+def servir_word(r: dict) -> Path | None:
+    match = re.fullmatch(r"servir:([0-9a-f]{16})", str(r.get("id") or "").lower())
+    if not match or not str(r.get("portal") or "").startswith("talento-peru"):
+        return None
+    path = ROOT / "reports" / "detalles" / f"sv_{match.group(1)}.docx"
+    return path if path.is_file() and path.stat().st_size <= 5_000_000 else None
+
+
+def word_html(r: dict) -> str:
+    path = servir_word(r)
+    if not path:
+        return ""
+    data = path.read_bytes()
+    if not data.startswith(b"PK\x03\x04"):
+        return ""
+    href = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," + base64.b64encode(data).decode("ascii")
+    return f'<a href="{href}" download="{esc(path.name)}">Descargar resumen (Word)</a>'
 
 
 def cv_hrefs(rows: list[dict], out_dir: Path, artifact: bool, embed: bool = False) -> dict[str, str]:
@@ -656,7 +697,7 @@ def collect(state: dict, fresh_rows: list[dict], research_dir: Path, context_row
         if not isinstance(e, dict) or e.get("duplicate_of") in seen:
             continue
         row = dict(e, key=key, also=also.get(key, []))
-        if e.get("status") == "ranked":
+        if e.get("status") == "ranked" or (e.get("status") == "expired" and e.get("screening_note")):
             pid = own_id(e)
             if shared[pid] > 1:
                 pid = ""
@@ -774,6 +815,11 @@ h2{font-size:18px;line-height:1.3}
 .quick{display:flex;flex-wrap:wrap;gap:6px}
 .quick button{font:inherit;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:6px 12px;min-height:36px;font-size:13px;font-weight:600}
 .quick button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.role-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:2px 0 4px}
+.role-filter>span{font-size:12px;font-weight:600;color:var(--dim)}
+.role-filter .quick button{min-height:40px;padding:7px 14px}
+.role-filter .quick button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.role-filter .quick small{font-size:11px;margin-left:5px;opacity:.8;font-variant-numeric:tabular-nums}
 .side fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
 .side legend{font-size:12px;font-weight:600;color:var(--ink-2);padding:0;margin-bottom:6px}
 .chk{display:flex;align-items:center;gap:8px;min-height:32px;font-size:14px;color:var(--ink);cursor:pointer}
@@ -1020,7 +1066,10 @@ JS = """
   var track=document.getElementById('main');
   if(!track)return;
   var cards=Array.prototype.slice.call(track.querySelectorAll('.card'));
-  var tot=document.getElementById('tot'),empty=document.getElementById('empty');
+  var tot=document.getElementById('tot'),empty=document.getElementById('empty'),emptyState=document.getElementById('empty-state');
+  var roleButtons=Array.prototype.slice.call(document.querySelectorAll('[data-role-filter]'));
+  var role=track.dataset.initialFocus||'';
+  if(role&&role!=='estado'&&!cards.some(function(c){return c.dataset.roles.split('|').indexOf(role)>=0;}))role='';
 
   // "Revisada": a per-browser convenience, never written back to the state files.
   var done=get('pe_revision_done',{});
@@ -1060,12 +1109,15 @@ JS = """
         &&(!fdistrict.value||c.dataset.districts.split('|').indexOf(fdistrict.value)>=0)
         &&(!fsector.value||c.dataset.sector===fsector.value)
         &&(!fkind.value||c.dataset.kinds.split('|').indexOf(fkind.value)>=0)
+        &&(!role||c.dataset.roles.split('|').indexOf(role)>=0)
         &&closeOk(c.dataset.close)&&doneOk(c)
         &&(fx.checked||c.dataset.excl!=='1');
       c.hidden=!ok;if(ok)shown++;
     });
-    tot.textContent=shown;empty.hidden=shown>0;
+    tot.textContent=shown;empty.hidden=shown>0||(role==='estado'&&!!emptyState);
+    if(emptyState)emptyState.hidden=shown>0||role!=='estado';
     document.querySelectorAll('[data-quick-action]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.quickAction===fa.value));});
+    roleButtons.forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.roleFilter===role));});
   }
   var heads=Array.prototype.slice.call(document.querySelectorAll('button.colsort'));
   function sort(){
@@ -1081,6 +1133,7 @@ JS = """
   controls.forEach(function(el){el.addEventListener('input',apply);el.addEventListener('change',apply);});
   mods.forEach(function(m){m.addEventListener('change',apply);});
   document.querySelectorAll('[data-quick-action]').forEach(function(b){b.addEventListener('click',function(){fa.value=b.dataset.quickAction;apply();});});
+  roleButtons.forEach(function(b){b.addEventListener('click',function(){role=b.dataset.roleFilter;apply();});});
   document.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('button[data-set-filter]');if(!b)return;
     var sel={district:fdistrict,sector:fsector,kind:fkind,zone:fz}[b.dataset.setFilter];
@@ -1100,7 +1153,7 @@ JS = """
   document.querySelectorAll('[data-goto]').forEach(function(b){
     b.addEventListener('click',function(){
       var card=cards.filter(function(c){return c.dataset.key===b.dataset.goto;})[0];if(!card)return;
-      if(card.hidden){controls.forEach(function(el){el.value='';});mods.forEach(function(m){m.checked=true;});apply();}
+      if(card.hidden){controls.forEach(function(el){el.value='';});mods.forEach(function(m){m.checked=true;});role='';apply();}
       var d=card.querySelector('details');if(d)d.open=true;
       card.scrollIntoView({behavior:'smooth',block:'start'});
     });
@@ -1174,11 +1227,16 @@ def coverage_html(cov: dict | None) -> str:
 
 def nuevas_html(report: dict | None, seen: dict) -> str:
     """The last search's postings not yet evaluated (tools/pe_pipeline.py buscar ->
-    reports/busqueda/nuevas.json), minus any registered since: a list to skim before /rank."""
+    reports/busqueda/nuevas.json), including entries registered as new but not yet evaluated."""
     if not isinstance(report, dict) or not isinstance(report.get("nuevas"), list):
         return ""
-    known = {pe_frescura.posting_id({"id": e.get("id"), "url": e.get("url")}) for e in seen.values() if isinstance(e, dict)}
-    rows = [p for p in report["nuevas"] if isinstance(p, dict) and pe_frescura.posting_id(p) not in known]
+    known = {pe_frescura.posting_id({"id": e.get("id"), "url": e.get("url")}): e
+             for e in seen.values() if isinstance(e, dict)}
+    rows = [p for p in report["nuevas"] if isinstance(p, dict) and
+            (pe_frescura.posting_id(p) not in known or
+             (known[pe_frescura.posting_id(p)].get("status") == "new" and
+              known[pe_frescura.posting_id(p)].get("fit") is None)) and not p.get("already_applied")]
+    applied = [p for p in report["nuevas"] if isinstance(p, dict) and p.get("already_applied")]
     if not rows:
         return ""
     portals = sorted({p.get("portal") or "?" for p in rows})
@@ -1187,10 +1245,20 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
     for p in rows:
         text = " ".join(str(p.get(k) or "") for k in ("title", "company", "location", "query")).lower()
         kind = " · ".join(x for x in (p.get("modality"), p.get("level")) if x and x != "no declarado")
+        url = p.get("url")
+        servir = p.get("portal") == "talento-peru"
+        listing = isinstance(url, str) and url.startswith("https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/")
+        title = esc(p.get("title") or "—") if servir and (not url or listing) else link(url, p.get("title") or "—")
+        source = p.get("search_url") or (url if listing else None)
+        if servir and not source:
+            source = ("https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/"
+                      + ("modalidades_formativas.xhtml" if p.get("type") == "practicas" else "ofertas_laborales.xhtml"))
+        source_note = (f'<br><span class="dim">Sin ficha individual · {link(source, "Buscar en SERVIR")}'
+                       f' · convocatoria {esc(p.get("ref") or "sin número")}</span>' if servir and (not url or listing) else "")
         body.append(
             f'<tr data-text="{esc(text)}" data-portal="{esc(p.get("portal") or "?")}" data-query="{esc(p.get("query") or "")}">'
-            f'<td class="num">{esc(p.get("date") or "—")}</td><td><b>{link(p.get("url"), p.get("title") or "—")}</b>'
-            f'<br><span class="dim">{esc(p.get("company") or "")}</span></td>'
+            f'<td class="num">{esc(p.get("date") or "—")}</td><td class="num">{esc(p.get("deadline") or "—")}</td><td><b>{title}</b>'
+            f'<br><span class="dim">{esc(p.get("company") or "")}</span>{source_note}</td>'
             f'<td>{esc(p.get("location") or "—")}</td><td>{esc(kind or "—")}</td>'
             f'<td>{esc((p.get("portal") or "?").replace("-", " "))}</td><td class="dim">{esc(p.get("query") or "")}</td></tr>')
     portal_opts = "".join(f'<option value="{esc(x)}">{esc(x.replace("-", " "))}</option>' for x in portals)
@@ -1199,11 +1267,13 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
             f'{esc(report.get("generated") or "—")}</summary>'
             '<p class="fine">Lo que trajo <code>python tools/pe_pipeline.py buscar</code> y aún no pasa por <code>/rank</code>: '
             'sin encaje, frescura ni lugar verificados. Solo para darles una mirada.</p>'
-            '<div class="filters"><input id="nq" type="search" placeholder="Buscar en las nuevas" aria-label="Buscar en las nuevas">'
+            + (f'<p class="fine">Ya postuladas en Bolsa UP ({len(applied)}): '
+               + ' · '.join(link(p.get("url"), p.get("title") or "oferta") for p in applied) + '</p>' if applied else '')
+            + '<div class="filters"><input id="nq" type="search" placeholder="Buscar en las nuevas" aria-label="Buscar en las nuevas">'
             f'<select id="np" aria-label="Portal"><option value="">Todo portal</option>{portal_opts}</select>'
             f'<select id="nc" aria-label="Consulta"><option value="">Toda consulta</option>{query_opts}</select>'
             f'<span class="progress">Mostrando <b id="ncount">{len(rows)}</b> de {len(rows)}</span></div>'
-            '<div class="wrap"><table><thead><tr><th>Publicada</th><th>Oferta</th><th>Lugar</th><th>Modalidad y nivel</th>'
+            '<div class="wrap"><table><thead><tr><th>Publicada</th><th>Cierra</th><th>Oferta</th><th>Lugar</th><th>Modalidad y nivel</th>'
             f'<th>Portal</th><th>Consulta</th></tr></thead><tbody id="nrows">{"".join(body)}</tbody></table></div></details>')
 
 
@@ -1220,11 +1290,15 @@ NUEVAS_JS = """
     n.textContent=shown;
   }
   [q,p,c].forEach(function(el){el.addEventListener('input',apply);el.addEventListener('change',apply);});
+  document.querySelectorAll('[data-show-portal]').forEach(function(a){a.addEventListener('click',function(){
+    var section=document.getElementById('sec-nuevas');if(section)section.open=true;
+    p.value=a.dataset.showPortal;apply();
+  });});
 })();
 """
 
 
-def render(data: dict, today: date, title: str | None, artifact: bool = False) -> str:
+def render(data: dict, today: date, title: str | None, artifact: bool = False, initial_focus: str = "") -> str:
     """The page. `artifact` drops the document wrapper (the claude.ai Artifact publisher adds
     its own <!doctype>/<head>/<body>) and declares the safe-area side gutter it relies on.
     Either way it is one file with no outside requests: it opens the same from disk, a phone or a host."""
@@ -1242,7 +1316,7 @@ def render(data: dict, today: date, title: str | None, artifact: bool = False) -
         f"<title>{esc(page_title)}</title>{style}</head><body>\n"
     )
     tail = "" if artifact else "</body></html>\n"
-    return head + _body(data, today, title, classes) + tail
+    return head + _body(data, today, title, classes, initial_focus) + tail
 
 
 def _sort_keys(r: dict) -> dict:
@@ -1299,7 +1373,7 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
         f'data-label="{esc((r.get("title") or "") + " · " + (r.get("company") or ""))}" '
         f'data-action="{esc(r["action"])}" data-modality="{esc(r.get("modality"))}" data-fresh="{esc(level)}" '
         f'data-close="{esc(closes["bucket"])}" data-zones="{esc(zones)}" data-districts="{esc(districts)}" '
-        f'data-sector="{esc(rb.get("label"))}" data-kinds="{esc(kinds)}" data-text="{esc(text)}" '
+        f'data-sector="{esc(rb.get("label"))}" data-kinds="{esc(kinds)}" data-roles="{esc("|".join(role_tags(r)))}" data-text="{esc(text)}" '
         f'data-excl="{"1" if r.get("abroad_excluded") else ""}" {sort_attrs}>'
         f'<details class="rowd"><summary class="row">'
         f'<span class="sc" title="Encaje: puntaje de /rank sobre 100 · {esc(r.get("rank_verdict"))}"><b>{esc(score if score is not None else "—")}</b>'
@@ -1353,8 +1427,15 @@ def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: 
     dl = "".join(f'<div><dt>{esc(k)}</dt><dd class="v">{esc(v)}</dd>' + (f'<dd class="n">{esc(n)}</dd>' if n else "") + "</div>"
                  for k, v, n in facts)
     url = r.get("url")
-    actions = (f'<a class="btn-primary" href="{esc(url)}" target="_blank" rel="noopener noreferrer">Ver aviso original {ICON_OUT}</a>'
+    label = "Ver ficha de Prácticas.pe" if "practicas.pe/" in str(url or "") else "Ver aviso original"
+    actions = (f'<a class="btn-primary" href="{esc(url)}" target="_blank" rel="noopener noreferrer">{label} {ICON_OUT}</a>'
                if re.match(r"^https?://", str(url or "")) else "")
+    if not actions and r.get("search_url"):
+        actions = (f'<a class="btn-primary" href="{esc(r["search_url"])}" target="_blank" rel="noopener noreferrer">'
+                   f'Buscar en SERVIR {ICON_OUT}</a>')
+    if re.match(r"^https?://", str(r.get("official_link") or "")):
+        actions += f'<a href="{esc(r["official_link"])}" target="_blank" rel="noopener noreferrer">Portal de la entidad {ICON_OUT}</a>'
+    actions += word_html(r)
     actions += cv_html(r).replace('<div class="cvrow">', "").replace("</div>", "")
     actions += (f'<label class="seen-btn"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> '
                 f'<span>Revisada</span></label>')
@@ -1362,12 +1443,23 @@ def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: 
     src = " · ".join(x for x in (f"publicada en {portal}" if portal else "", f"vista el {_ddmm(r.get('first_seen'))}"
                                  if _ddmm(r.get("first_seen")) else "") if x)
     people = people_html(r)
+    gaps, warnings = r.get("gaps") or [], list(r.get("warnings") or [])
+    if r.get("eligibility_gate") == "FLAG" and r.get("eligibility_note"):
+        warnings.insert(0, "Elegibilidad por confirmar: " + str(r["eligibility_note"]))
+    elif r.get("eligibility_gate") == "FAIL" and r.get("eligibility_note"):
+        warnings.insert(0, "Requisito excluyente: " + str(r["eligibility_note"]))
+    note_title = "Brechas" if gaps or not warnings else "Advertencias"
+    notes = bullets(gaps) if gaps else ""
+    if warnings:
+        notes += ("<strong>Advertencias</strong>" if gaps else "") + bullets(warnings)
+    if not notes:
+        notes = bullets([])
     return (
         f'<div class="d-actions">{actions}<span class="grow"></span><span class="d-src">{esc(src)}</span></div>'
         f'<dl class="facts">{dl}</dl>'
         '<div class="d-grid">'
         f'<section class="d-card why"><h4><span class="ic">{ICON_CHECK}</span>Por qué calza</h4>{bullets(r.get("strengths"))}</section>'
-        f'<section class="d-card gaps"><h4><span class="ic">{ICON_ALERT}</span>Brechas</h4>{bullets(r.get("gaps"))}</section>'
+        f'<section class="d-card gaps"><h4><span class="ic">{ICON_ALERT}</span>{note_title}</h4>{notes}</section>'
         f'<section class="d-card apply"><h4>{"Postulación" if applied else "Cómo postular"}</h4>{applied}{how}'
         f'{contacts_html(r)}{people}<div class="meta">{meta_html(r)}</div>{also_html(r)}</section>'
         '</div>'
@@ -1393,7 +1485,8 @@ def soon_card(r: dict, classes: dict[str, str]) -> str:
     )
 
 
-def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | None = None) -> str:
+def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | None = None,
+          initial_focus: str = "") -> str:
     classes = classes or {}
     sl = data["shortlist"]
     acts = data["actions"]
@@ -1425,6 +1518,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     main_rows = [r for r in data["ranked"] if r["action"] not in ("descartar", "cerrada", "postulada")]
     applied_rows = [r for r in data["ranked"] if r["action"] == "postulada"]
     closed_rows = [r for r in data["ranked"] if r["action"] == "cerrada"]
+    closed_public = [r for r in closed_rows if "estado" in role_tags(r)]
     out_rows = [r for r in data["ranked"] if r["action"] == "descartar"]
     modalities = sorted({r.get("modality") for r in main_rows if r.get("modality")})
     zone_set = sorted({z for r in main_rows for z in ((((r.get("context") or {}).get("lugar") or {}).get("zones")) or [])})
@@ -1444,6 +1538,23 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     mode_checks = "".join(f'<label class="chk"><input type="checkbox" class="fmod" value="{esc(m)}" checked> {esc(m.capitalize())}</label>'
                           for m in mode_values)
     by_action = Counter(r["action"] for r in main_rows)
+    by_role = Counter(tag for r in main_rows for tag in role_tags(r))
+    known_ids = {pe_frescura.posting_id({"id": e.get("id"), "url": e.get("url")})
+                 for e in data["seen"].values() if isinstance(e, dict)}
+    pending_servir = sum(1 for p in ((data.get("nuevas") or {}).get("nuevas") or [])
+                         if isinstance(p, dict) and p.get("portal") == "talento-peru"
+                         and pe_frescura.posting_id(p) not in known_ids)
+    role_buttons = ('<button type="button" data-role-filter="" aria-pressed="true">Todos'
+                    f'<small>{len(main_rows)}</small></button>'
+                    + "".join(f'<button type="button" data-role-filter="{key}" aria-pressed="false">{label}'
+                              f'<small>{by_role[key]}</small></button>'
+                              for key, label in (("campo", "Trabajo de campo"), ("rrhh", "RR. HH."),
+                                                 ("practicas", "Prácticas"), ("estado", "Sector público"),
+                                                 ("otros", "Otros")) if by_role[key] or key == "estado"))
+    state_empty = (f'<div class="empty" id="empty-state" hidden>Aún no hay ofertas del sector público evaluadas'
+                   f' con estos filtros. <a href="#sec-nuevas" data-show-portal="talento-peru">'
+                   f'Ver {pending_servir} {"nueva" if pending_servir == 1 else "nuevas"} de SERVIR sin evaluar</a>.</div>' if pending_servir else
+                   '<div class="empty" id="empty-state" hidden>Aún no hay ofertas evaluadas del sector público.</div>')
     action_buttons = (f'<button type="button" data-quick-action="" aria-pressed="true"><span>Todas</span><span>{len(main_rows)}</span></button>'
                       + "".join(f'<button type="button" data-quick-action="{k}" aria-pressed="false"><span>{esc(lbl)}</span>'
                                 f'<span>{by_action[k]}</span></button>'
@@ -1540,11 +1651,14 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="legend" style="border-top:1px solid var(--line);padding-top:14px;margin-top:0">{pref_html}</div>
 </aside>
 <div class="listcol">
+<div class="role-filter" role="group" aria-label="Filtrar por tipo de puesto"><span>Tipo de puesto</span><div class="quick">{role_buttons}</div></div>
+{f'<p class="note"><a href="#sec-cerradas" data-open="sec-cerradas">Ver {len(closed_public)} {"convocatoria pública cerrada" if len(closed_public) == 1 else "convocatorias públicas cerradas"}</a></p>' if closed_public else ''}
 <div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
 <div class="list-tools"><label>Orden <select id="so">{sort_opts}</select></label></div></div>
 <div class="cols" role="group" aria-label="Ordenar por columna">{col_buttons}<span></span></div>
-<div class="track list" id="main" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
+<div class="track list" id="main" data-initial-focus="{esc(initial_focus)}" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
 <div class="empty" id="empty" hidden>Ninguna oferta con estos filtros.</div>
+{state_empty}
 <p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular · revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}.</p>
 </div>
 </section>
@@ -1572,7 +1686,7 @@ Reputación: cada calificación con su n, área y fecha; con menos de {SMALL_N} 
 
 
 
-def export(data: dict, today: date, title: str | None) -> dict:
+def export(data: dict, today: date, title: str | None, initial_focus: str = "") -> dict:
     """The page's content as plain data, for a script or a model to read instead of the HTML:
     the same rows, actions and evidence, without logos or markup."""
     labels = {k: label for k, label, _ in ACTIONS}
@@ -1584,9 +1698,12 @@ def export(data: dict, today: date, title: str | None) -> dict:
         closes = r.get("closes") or {}
         return {
             "key": r["key"], "title": r.get("title"), "company": r.get("company"), "url": r.get("url"),
-            "portal": r.get("portal"), "action": r["action"], "action_label": labels[r["action"]],
+            "search_url": r.get("search_url"), "official_link": r.get("official_link"), "ref": r.get("ref"),
+            "portal": r.get("portal"), "tags": role_tags(r), "action": r["action"], "action_label": labels[r["action"]],
             "application_status": r.get("application_status"), "applied_date": r.get("applied_date"),
             "score": r.get("rank_score"), "verdict": r.get("rank_verdict"),
+            "eligibility_gate": r.get("eligibility_gate"), "eligibility_note": r.get("eligibility_note"),
+            "screening_note": r.get("screening_note"),
             "deadline": r.get("deadline"), "days_to_close": closes.get("days"), "closes_label": closes.get("label"),
             "freshness": freshness_of(r.get("fresh")), "age_days": fresh.get("age_days"),
             "original_date": fresh.get("original_date"), "ghost_risk": fresh.get("risk"), "fresh_signals": fresh.get("signals") or [],
@@ -1595,7 +1712,8 @@ def export(data: dict, today: date, title: str | None) -> dict:
             "districts": lg.get("districts") or [], "zones": lg.get("zones") or [], "address": lg.get("address"),
             "sector": rb.get("label"), "how_to_apply": r.get("how_to_apply"), "contact": r.get("contact"),
             "cv": r.get("cv") if r.get("cv_name") else None,
-            "strengths": r.get("strengths") or [], "gaps": r.get("gaps") or [],
+            "word": str(servir_word(r).relative_to(ROOT)).replace("\\", "/") if servir_word(r) else None,
+            "strengths": r.get("strengths") or [], "gaps": r.get("gaps") or [], "warnings": r.get("warnings") or [],
             "ratings": [{k: x.get(k) for k in ("source", "rating", "n", "area", "area_n", "latest", "url")}
                         for x in (r.get("ratings") or [])],
             "also": [{"portal": e.get("portal"), "company": e.get("company"), "url": e.get("url")} for e in r.get("also") or []],
@@ -1606,6 +1724,7 @@ def export(data: dict, today: date, title: str | None) -> dict:
     return {
         "generated": today.isoformat(), "candidate": title,
         "preferencias": {"extranjero": (data.get("abroad_pref") or {"mode": "no"})["mode"],
+                         "filtro_inicial": initial_focus,
                          "extranjero_texto": (data.get("abroad_pref") or {}).get("text")},
         "counts": {"seen": len(data["seen"]), "ranked": len(data["ranked"]), "shortlist": len(data["shortlist"]),
                    "postular": a["ya"] + a["pronto"], "confirmar": a["confirmar"] + a["antes"],
@@ -1637,6 +1756,8 @@ def main(argv=None) -> int:
     ap.add_argument("--json", type=Path, dest="json_out",
                     help="also write the page's content as JSON here, for scripts or a model to read")
     ap.add_argument("--titulo", help="name shown in the heading, e.g. the candidate's")
+    ap.add_argument("--filtro-inicial", choices=("campo", "rrhh", "practicas", "estado", "otros"), default="",
+                    help="role shortcut selected when the HTML first opens")
     ap.add_argument("--perfil", type=Path, default=Path("CLAUDE.md"),
                     help="the profile whose `Abroad:` line says if non-remote postings abroad are in play")
     ap.add_argument("--nuevas", type=Path, default=Path("reports/busqueda/nuevas.json"),
@@ -1687,10 +1808,10 @@ def main(argv=None) -> int:
     if args.cv_manifest:
         args.cv_manifest.write_text(json.dumps({k: str(Path(v).resolve()) for k, v in manifest.items()},
                                                ensure_ascii=False, indent=1), encoding="utf-8")
-    args.out.write_text(render(data, args.today, args.titulo, args.artifact), encoding="utf-8")
+    args.out.write_text(render(data, args.today, args.titulo, args.artifact, args.filtro_inicial), encoding="utf-8")
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
-        args.json_out.write_text(json.dumps(export(data, args.today, args.titulo), ensure_ascii=False, indent=1),
+        args.json_out.write_text(json.dumps(export(data, args.today, args.titulo, args.filtro_inicial), ensure_ascii=False, indent=1),
                                  encoding="utf-8")
     a = data["actions"]
     print(f"{args.out}: {len(data['ranked'])} evaluadas · postular {a['ya'] + a['pronto']} · "

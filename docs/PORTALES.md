@@ -2,19 +2,20 @@
 
 Qué portales cubre la búsqueda, cómo, y qué se sabe de cada uno. El estado de cada corrida no se escribe aquí: lo registra `python tools/pe_pipeline.py buscar` en `reports/busqueda/cobertura.json` y se ve con `python tools/pe_pipeline.py portales` o en la sección "Portales y cobertura" de la página. Este archivo guarda lo que no cambia entre corridas: método, pruebas y límites conocidos.
 
-**Última revisión:** 2026-10-24.
+**Última revisión general:** 2026-10-25. **Bolsa UP:** 2026-10-30.
 
 ## Resumen
 
-| Portal | Método | Estado al 24/10/2026 | Para qué sirve |
+| Portal | Método | Estado comprobado | Para qué sirve |
 |---|---|---|---|
 | LinkedIn Jobs | CLI `linkedin-search` | Funciona; responde 429 a las ráfagas | Prácticas y analistas junior en bancos, consultoras y grandes empresas |
-| Bolsa de tu universidad | A mano (con tu cuenta) | Pide iniciar sesión | Oportunidades para estudiantes y egresados |
-| Talento Perú (SERVIR) | CLI `tools/pe_servir.py` | Formulario JSF probado para laborales y prácticas | Ministerios, reguladores y entidades públicas |
+| Bolsa UP / Symplicity | CLI local optativo `tools/pe_symplicity.py` | Búsqueda, fichas, solicitudes, CV guardados y envío desde el formulario interno verificados | Oportunidades para estudiantes y egresados UP |
+| Talento Perú (SERVIR) | CLI `tools/pe_servir.py` | Lista, detalle «Ver más» y Word DOCX probados | Ministerios, reguladores y entidades públicas |
+| Convocatorias ONPE | Enlace manual | Portal de reclutamiento con cuenta | Procesos electorales y trabajo de campo; confirmar provincia exacta |
 | Bumeran | CLI `bumeran-search` | Funciona | Prácticas, asistentes, analistas junior y finanzas |
 | Laborum | Enlace · `jev-search` | Responde; resultados por JavaScript | Empresas privadas: administración, finanzas, análisis |
-| Indeed Perú | Enlace manual | Búsqueda pública | Vacantes de muchas empresas y portales |
-| Glassdoor Perú | Enlace manual | Ofertas en Lima | Prácticas y puestos junior; reseñas de empresas |
+| Indeed Perú | Enlace manual · JobSpy opcional | Consulta de JobSpy probada el 25/10/2026 | Vacantes de muchas empresas y portales |
+| Glassdoor Perú | Enlace manual | JobSpy omite Perú | Prácticas y puestos junior; sueldos y reseñas |
 | Computrabajo | CLI `computrabajo-search` | Funciona | Mucho volumen; hay que filtrar |
 | Empleos Perú (MTPE) | Enlace · `jev-search` | Responde | Bolsa pública del Ministerio de Trabajo |
 | Prácticas.pe | CLI `tools/pe_practicas.py` | Búsqueda por `q` y `dep`, fichas individuales | Prácticas públicas y privadas en Lima |
@@ -32,17 +33,22 @@ Qué portales cubre la búsqueda, cómo, y qué se sabe de cada uno. El estado d
 - **Error conocido: `429 Too Many Requests`.** Aparece cuando se lanzan muchas consultas seguidas. Por eso `buscar` espera 6 s entre consultas y deja de consultar LinkedIn tras dos 429 seguidos. Esas consultas se repiten después con `--portal linkedin`.
 - La modalidad solo viene cuando la búsqueda usa `--remote`.
 
-### Bolsa de tu universidad (a mano)
+### Bolsa UP / Symplicity (CLI local optativo)
 
-- Las bolsas universitarias (muchas en Symplicity o Handshake) piden iniciar sesión con la cuenta de estudiante, así que no hay búsqueda automática: el pipeline deja un enlace manual.
-- Agrega la URL de tu bolsa en `consultas.json` → `"portales": [{"id": "bolsa-universidad", "home": "https://..."}]` para verla en la página. Si una oferta viene de ahí, anota su id de la bolsa en `how_to_apply`.
+- Para la Bolsa UP hay un CLI de Chrome que usa la sesión de la cuenta indicada por el perfil; la persona introduce sus credenciales y el PIN en el navegador. Se documenta en [SYMPLICITY.md](SYMPLICITY.md). No se usan credenciales en la terminal ni se suben a Git. La sesión local caduca según `--remember-hours`; si el servidor la cierra antes, hay que repetir `login`.
+- El pipeline ejecuta sus consultas solo cuando un perfil añade entradas `{"portal":"bolsa-universidad","q":"..."}` y `"symplicity_account":"mi-cuenta"` en su `consultas.json`. `q` puede ser vacío para ver todos los avisos por fecha; `paginas` permite avanzar. El CLI lee «Solicitudes» y marca los avisos ya postulados al registrar, incluso si no hay avisos nuevos. Con `--detalle` lee descripción, requisitos, modalidad y cierre de cada aviso nuevo. No conoce la fecha exacta de publicación, solo la antigüedad relativa que muestra el portal. Si no se configura, el portal conserva su enlace manual.
+- El mismo CLI lista los CV guardados y los disponibles en el formulario. `upload-resume`, `delete-resume` y `submit-application` muestran un plan por defecto y requieren `--confirm` para cambiar la cuenta. Guardar un CV y enviar la solicitud son acciones distintas; `submit-application` verifica el envío en «Solicitudes» y evita duplicarlo. Solo cubre formularios que se abren dentro de Bolsa UP; algunas vacantes llevan al sitio del empleador. El cupo total de CV de la cuenta no está verificado.
 
 ### Talento Perú (SERVIR) (CLI)
 
 - `tools/pe_servir.py` consulta el formulario JSF y conserva el estado de vista en cada página. No necesita navegador ni LLM. Instala sus dependencias con `pip install -r tools/requirements-servir.txt`.
 - Ejemplos: `python tools/pe_servir.py search -q economia -l Lima --tipo laboral` (carrera), `python tools/pe_servir.py search -q supervisor -l Lima --tipo laboral --campo puesto` (cargo) y `python tools/pe_servir.py search -l Lima --tipo practicas`.
 - **Perfil o puesto:** el formulario laboral tiene dos campos. `--campo perfil` (por defecto) filtra por la carrera que pide la convocatoria; `--campo puesto`, por el nombre del cargo. Una palabra de cargo buscada como perfil devuelve 0 sin error. `buscar --portal talento-peru` ejecuta las consultas guardadas del perfil.
-- Los avisos no tienen URL individual: el resultado guarda el número de convocatoria, la entidad y la URL del buscador. Abre esa página, busca el número y descarga el Word para comprobar bases y plazo. **Fecha Fin/Cierre de Publicación** es el vencimiento en el portal (`validThrough`), no la fecha de postulación.
+- SERVIR no ofrece una URL individual estable: el resultado guarda número de convocatoria, entidad y `search_url` del formulario. `url` queda vacío, y la página muestra «Buscar en SERVIR» por separado; así el título no promete abrir una ficha que no existe. Si la entidad publica una ficha oficial exacta, se puede registrar su enlace en `reports/busqueda/enlaces_oficiales.json` del perfil (`{"SERVIR:ID":"https://..."}`); entonces el título sí la abre. `python tools/pe_servir.py detail SERVIR:ID --titulo "TÍTULO" --tipo laboral --ref "NÚMERO"` abre «Ver más» y extrae los requisitos y enlaces de la entidad. El Word es un resumen opcional: se descarga solo al añadir `--word reports/detalles/SERVIR_ID.docx`. **Fecha Fin/Cierre de Publicación** es el vencimiento en el portal (`validThrough`), no la fecha de postulación.
+
+### Convocatorias ONPE (manual)
+
+- [Portal de reclutamiento de ONPE](https://reclutamiento.onpe.gob.pe/convocatorias). Algunas convocatorias electorales son trabajo de campo, pero la sede puede estar fuera de Lima Metropolitana aunque un agregador las etiquete como «Lima». Elige provincia y verifica plazo en la ficha oficial. El portal de acceso requiere cuenta; `buscar` no entra en ella.
 
 ### Bumeran (CLI)
 
@@ -57,10 +63,17 @@ Qué portales cubre la búsqueda, cómo, y qué se sabe de cada uno. El estado d
 
 ### Indeed Perú y Glassdoor Perú (enlaces)
 
-- `pe.indeed.com/jobs?q=...&l=Lima` responde 200 con resultados en el HTML.
-- Glassdoor muestra ofertas para Lima, por ejemplo en su [búsqueda de `practicante`](https://www.glassdoor.com/Job/lima-practicante-jobs-SRCH_IL.0%2C4_IC3033968_KO5%2C16.htm). El enlace de la cobertura abre esa búsqueda; cambia las palabras clave dentro del portal.
-- JobSpy declara soporte para Indeed Perú, pero no marca Glassdoor Perú entre los países compatibles de su conector de Glassdoor. Que Glassdoor tenga anuncios peruanos no demuestra que ese conector funcione allí.
-- Los términos de [Indeed](https://pe.indeed.com/legal) y [Glassdoor](https://www.glassdoor.com/about/terms-2022-12-01/) restringen el scraping automatizado sin permiso. Ambos quedan como enlaces para búsqueda manual; no se incluyen en `buscar` ni se recomiendan por `jev-search`.
+- `pe.indeed.com/jobs?q=...&l=Lima` responde 200 con resultados en el HTML. También probé una consulta pequeña con JobSpy: devolvió cinco ofertas de Indeed Perú. Es una herramienta opcional iniciada por la persona, fuera de las corridas programadas de `buscar`:
+
+  ```bash
+  uvx --from python-jobspy jobspy "practicante economía" --site indeed --location Lima --country-indeed Peru -n 5 --hours-old 336 -o reports/busqueda/indeed.jsonl
+  ```
+
+  El archivo JSONL se puede abrir sin un LLM o entregar a Claude/Codex para revisar las ofertas. `uvx` instala JobSpy en su caché; usa `uv tool install python-jobspy` si prefieres instalar el comando `jobspy` de forma permanente. La prueba confirmó que el conector responde, no que todas las ofertas estén vigentes o sean relevantes: verifica cada aviso antes de postular.
+- Glassdoor muestra ofertas para Lima y datos salariales. El enlace de la cobertura abre la página principal; busca el puesto y Lima dentro del portal. Distingue el sueldo publicado por el empleador de las estimaciones de Glassdoor por puesto o empresa: una estimación no es una oferta salarial.
+- JobSpy no declara soporte para Glassdoor Perú. La prueba con `--site glassdoor --country-indeed Peru` respondió `country_indeed peru isn't supported, skipping it`; no produjo ofertas. Usa el enlace manual de Glassdoor para consultar puestos y sueldos.
+- Los términos de [Indeed](https://pe.indeed.com/legal) y [Glassdoor](https://www.glassdoor.com/about/terms/) restringen la extracción automatizada sin permiso. Glassdoor también restringe los enlaces directos a secciones internas. JobSpy queda como una consulta opcional a criterio del usuario; no se ejecuta en `buscar` ni se recomienda `jev-search` para estos dos portales.
+- Glassdoor indica que sus vacantes se apoyan en los anuncios de Indeed. Al registrar una oferta encontrada allí, comprueba si ya figura en Indeed u otro portal. Sus estimaciones salariales combinan datos aportados por usuarios y otras fuentes; guarda la fuente, moneda, período y fecha si anotas una cifra manualmente.
 
 ### Computrabajo (CLI)
 

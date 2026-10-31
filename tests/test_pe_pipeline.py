@@ -77,10 +77,11 @@ class Buscar(unittest.TestCase):
         laborum = next(p for p in cov["portales"] if p["id"] == "laborum")
         self.assertIn("laborum.pe/search-jobs?q=practicante", laborum["enlaces"][0]["url"])
         bolsa = next(p for p in cov["portales"] if p["id"] == "bolsa-universidad")
-        self.assertEqual(bolsa["enlaces"], [])  # each candidate adds their own board's URL
+        self.assertEqual(bolsa["metodo"], "manual")  # opt-in until this profile adds UP queries
+        self.assertIn("up-csm.symplicity.com", bolsa["enlaces"][0]["url"])
         glassdoor = next(p for p in cov["portales"] if p["id"] == "glassdoor")
         self.assertEqual(glassdoor["metodo"], "manual")
-        self.assertIn("glassdoor.com/Job/lima-practicante-jobs", glassdoor["enlaces"][0]["url"])
+        self.assertEqual("https://www.glassdoor.com/", glassdoor["enlaces"][0]["url"])
 
     def test_previous_latest_search_is_preserved_before_replacement(self):
         latest = self.tmp / "reports/busqueda/nuevas.json"
@@ -116,11 +117,97 @@ class Buscar(unittest.TestCase):
         self.assertEqual(len(added), 1)
         self.assertEqual((added[0]["status"], added[0]["portal"]), ("new", "bumeran-search"))
 
+    def test_university_board_uses_local_account_for_search_and_applications(self):
+        (self.tmp / "q.json").write_text(json.dumps({"symplicity_account": "john", "consultas": [
+            {"portal": "bolsa-universidad", "q": "practicante finanzas", "l": "Lima"}]}), encoding="utf-8")
+        self.assertEqual(self.run_cmd("--portal", "bolsa-universidad"), 0)
+        cmd = self.calls[0][0]
+        self.assertIn("--account", cmd)
+        self.assertEqual(cmd[cmd.index("--account") + 1], "john")
+        self.assertNotIn("--jobage", cmd)
+        self.assertNotIn("-l", cmd)
+        self.assertEqual(len(self.calls), 2, "listing and read-only applications")
+        coverage = json.loads((self.tmp / "reports/busqueda/cobertura.json").read_text(encoding="utf-8"))
+        board = next(p for p in coverage["portales"] if p["id"] == "bolsa-universidad")
+        self.assertEqual(board["metodo"], "cli")
+
+    def test_university_detail_populates_deadline_and_academic_level(self):
+        ident = "up:2dfc7f54f27be627979ea2c5564e28ac"
+        (self.tmp / "q.json").write_text(json.dumps({"symplicity_account": "john", "consultas": [
+            {"portal": "bolsa-universidad", "q": "planeamiento financiero"}]}), encoding="utf-8")
+
+        def fake_run(cmd, out=None, timeout=180):
+            self.calls.append((cmd, out))
+            if "detail" in cmd:
+                value = {"id": ident, "description": "Excel avanzado y SQL intermedio",
+                         "deadline": "2026-11-12", "academic_level": "Alumno de pregrado",
+                         "job_type": "Práctica Preprofesional", "modality": "Híbrido"}
+            elif "applications" in cmd:
+                value = {"results": []}
+            else:
+                value = {"results": [{"id": ident, "title": "Practicante de Planeamiento Financiero",
+                                      "company": "Interbank", "url": "https://up-csm.symplicity.com/students/app/jobs/detail/" + ident.split(":")[1]}]}
+            if out:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(json.dumps(value), encoding="utf-8")
+            return value, None
+
+        self.patch(pp, "run_json", fake_run)
+        self.assertEqual(self.run_cmd("--portal", "bolsa-universidad", "--detalle", "--registrar"), 0)
+        report = json.loads((self.tmp / "reports/busqueda/nuevas.json").read_text(encoding="utf-8"))
+        row = report["nuevas"][0]
+        self.assertEqual(row["deadline"], "2026-11-12")
+        self.assertEqual(row["academic_level"], "Alumno de pregrado")
+        self.assertIn("Excel avanzado", row["requirements"])
+        self.assertTrue(Path(row["detail"]).is_file())
+
+    def test_university_applications_mark_confirmed_postings_applied(self):
+        ident = "up:95ccb8cb1e172c3af0d07d346638aab4"
+        url = "https://up-csm.symplicity.com/students/app/jobs/search?currentJobId=" + ident.split(":")[1]
+        (self.tmp / "q.json").write_text(json.dumps({"symplicity_account": "john", "consultas": [
+            {"portal": "bolsa-universidad", "q": ""}]}), encoding="utf-8")
+
+        def fake_run(cmd, out=None, timeout=180):
+            self.calls.append((cmd, out))
+            if "applications" in cmd:
+                return {"results": [{"id": ident, "title": "Practicante", "status": "applied"}]}, None
+            return {"results": [{"id": ident, "title": "Practicante", "company": "Banco", "url": url}]}, None
+
+        self.patch(pp, "run_json", fake_run)
+        self.assertEqual(self.run_cmd("--portal", "bolsa-universidad", "--registrar"), 0)
+        report = json.loads((self.tmp / "reports/busqueda/nuevas.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["ya_postuladas_bolsa_up"], 1)
+        self.assertTrue(report["nuevas"][0]["already_applied"])
+        state = json.loads((self.tmp / "seen.json").read_text(encoding="utf-8"))["seen"]
+        self.assertIn("up_" + ident.split(":")[1], state)
+        self.assertEqual(next(e for e in state.values() if e.get("id") == ident.upper())["status"], "applied")
+
+    def test_university_applications_sync_existing_posting_without_new_results(self):
+        ident = "up:95ccb8cb1e172c3af0d07d346638aab4"
+        url = "https://up-csm.symplicity.com/students/app/jobs/detail/" + ident.split(":")[1]
+        (self.tmp / "seen.json").write_text(json.dumps({"seen": {"existing_up": {
+            "id": ident.upper(), "title": "Practicante", "company": "Banco",
+            "url": url, "status": "ranked", "fit": "high"}}}), encoding="utf-8")
+        (self.tmp / "q.json").write_text(json.dumps({"symplicity_account": "cuenta_up", "consultas": [
+            {"portal": "bolsa-universidad", "q": ""}]}), encoding="utf-8")
+
+        def fake_run(cmd, out=None, timeout=180):
+            if "applications" in cmd:
+                return {"results": [{"id": ident, "status": "applied"}]}, None
+            return {"results": [{"id": ident, "title": "Practicante", "company": "Banco", "url": url}]}, None
+
+        self.patch(pp, "run_json", fake_run)
+        self.assertEqual(self.run_cmd("--portal", "bolsa-universidad", "--registrar"), 0)
+        entry = json.loads((self.tmp / "seen.json").read_text(encoding="utf-8"))["seen"]["existing_up"]
+        self.assertEqual(entry["status"], "ranked")
+        self.assertEqual(entry["application_status"], "applied")
+        self.assertEqual(entry["application_source"], "bolsa-up-solicitudes")
+
     def test_servir_keeps_each_convocatoria_and_does_not_treat_portal_expiry_as_deadline(self):
         (self.tmp / "q.json").write_text(json.dumps({"consultas": [
             {"portal": "talento-peru", "q": "", "l": "Lima", "tipo": "practicas"}]}), encoding="utf-8")
         listing = {"results": [{"id": "servir:a123", "title": "Práctica de Economía", "company": "Entidad",
-                                "url": "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/modalidades_formativas.xhtml",
+                                "url": None, "search_url": "https://app.servir.gob.pe/DifusionOfertasExterno/faces/consultas/modalidades_formativas.xhtml",
                                 "date": "2026-10-23", "validThrough": "2026-10-30", "ref": "007 - 2026",
                                 "type": "practicas", "level": "Prácticas Profesionales"}]}
 
@@ -134,13 +221,17 @@ class Buscar(unittest.TestCase):
         self.patch(pp, "run_json", fake_run)
         self.assertEqual(self.run_cmd("--registrar", "--detalle"), 0)
         self.assertIn("--tipo", self.calls[0][0])
+        self.assertNotIn("--word", self.calls[1][0])
         seen = json.loads((self.tmp / "seen.json").read_text(encoding="utf-8"))["seen"]
         row = seen["servir_A123"]
         self.assertEqual(row["id"], "SERVIR:A123")
+        self.assertIsNone(row["url"])
+        self.assertIn("modalidades_formativas.xhtml", row["search_url"])
         self.assertIsNone(row["deadline"])
         self.assertEqual(row["validThrough"], "2026-10-30")
         self.assertTrue(Path(row["detail"]).is_file())
         self.assertIn("007 - 2026", row["how_to_apply"])
+        self.assertIn("Ver más", row["how_to_apply"])
         self.calls.clear()
         self.assertEqual(self.run_cmd(), 0)
         self.assertEqual(json.loads((self.tmp / "reports/busqueda/nuevas.json").read_text(encoding="utf-8"))["nuevas"], [])

@@ -2,7 +2,8 @@
 """Search SERVIR public-sector jobs and internships without a browser or LLM.
 
 The site is JSF: each request needs the current ViewState. Its listings have no stable
-per-posting URL, so each result includes the public convocatoria number and search page.
+per-posting URL. A manually verified official link may be attached by convocatoria ID;
+otherwise the result keeps only the search page and convocatoria number.
 Install dependencies with: pip install -r tools/requirements-servir.txt
 """
 
@@ -15,6 +16,7 @@ import time
 import unicodedata
 import xml.etree.ElementTree as ET
 from datetime import date, datetime
+from pathlib import Path
 
 try:
     import requests
@@ -37,6 +39,7 @@ SEARCH_BUTTON = {"laboral": "j_idt46", "practicas": "j_idt43"}
 UA = "Mozilla/5.0 (compatible; pe-servir/1.0; personal job search)"
 MAX_PAGES = 40  # 10 per page: a query that matches more is too broad to read whole
 PAUSE = 0.5  # seconds between page requests: a public-sector server, kept gentle
+OFFICIAL_LINKS = Path("reports/busqueda/enlaces_oficiales.json")
 
 
 def clean(value):
@@ -79,7 +82,7 @@ def parse_rows(html, kind, url):
         results.append({
             "id": ident, "site": "talento-peru", "type": kind, "title": title, "company": company,
             "location": fields.get("ubicacion"), "date": iso(start), "validThrough": iso(end),
-            "ref": ref, "url": url, "salary": fields.get("remuneracion"),
+            "ref": ref, "url": None, "search_url": url, "salary": fields.get("remuneracion"),
             "level": fields.get("tipo de modalidad") if kind == "practicas" else None,
             "modality": None,
         })
@@ -165,7 +168,98 @@ def search(query, location="Lima", kind="ambos", limit=100, jobage=None, field="
         results = []
         for selected in kinds:
             results.extend(search_kind(session, selected, query, location, limit, jobage, field))
+    try:
+        links = json.loads(OFFICIAL_LINKS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        links = {}
+    if isinstance(links, dict):
+        for row in results:
+            direct = links.get(str(row.get("id") or "").upper())
+            if isinstance(direct, str) and direct.startswith("https://"):
+                row["url"] = direct
     return {"results": results, "query": query, "location": location, "type": kind}
+
+
+def parse_detail(html):
+    """The 'Ver más' page has the actual requirements; the Word is only a summary."""
+    soup = BeautifulSoup(html, "html.parser")
+    sections = [clean(x.get_text(" ")) for x in soup.select(".cuadro-seccion")]
+    links = [a["href"] for a in soup.select(".cuadro-seccion a[href]")
+             if a["href"].startswith("https://")]
+    emails = re.findall(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", " ".join(sections))
+    return {"description": "\n".join(sections), "official_links": list(dict.fromkeys(links)),
+            "contact": emails[0] if emails else None}
+
+
+def detail(ident, title, kind="laboral", location="Lima", word=None, ref=None, query=None):
+    """Find one listing by title and ID, then open its JSF 'Ver más' and optional Word."""
+    if kind not in KINDS:
+        raise ValueError("tipo debe ser laboral o practicas")
+    page, form, query_field = KINDS[kind]
+    url = BASE + page
+    code, reason = robots_check.gate(url)
+    if code:
+        raise RuntimeError("SERVIR robots.txt: " + reason)
+    with requests.Session() as session:
+        session.headers["User-Agent"] = UA
+        response = session.get(url, timeout=30)
+        response.raise_for_status()
+        view = parse_rows(response.text, kind, url)[3]
+        if not view:
+            raise ValueError("SERVIR no entregó javax.faces.ViewState")
+        button = BeautifulSoup(response.text, "html.parser").select_one(f'button[id^="{form}:"][title="Buscar"]')
+        source = button.get("id") if button else f"{form}:{SEARCH_BUTTON[kind]}"
+        field = "txtPuesto" if kind == "laboral" else query_field
+        payload = {"javax.faces.partial.ajax": "true", "javax.faces.source": source,
+                   "javax.faces.partial.execute": "@all", "javax.faces.partial.render": form + ":mensaje " + form,
+                   form: form, "javax.faces.ViewState": view, source: source,
+                   form + ":cboDep_input": "15" if normalized(location) == "lima" else "0",
+                   form + ":" + field: query or title}
+        if kind == "laboral":
+            payload[form + ":modalidadAcceso"] = "03"
+            if ref:
+                payload[form + ":txtNroConv"] = ref.rsplit("-", 1)[-1]
+        for _ in range(MAX_PAGES):
+            response = session.post(url, data=payload, headers={"Faces-Request": "partial/ajax"}, timeout=30)
+            response.raise_for_status()
+            html, view = partial(response, form)
+            rows, pages, next_button, _ = parse_rows(html, kind, url)
+            for index, row in enumerate(rows):
+                if row["id"].casefold() != ident.casefold():
+                    continue
+                box = BeautifulSoup(html, "html.parser").select(".cuadro-vacantes")[index]
+                basic = {form: form, "javax.faces.ViewState": view,
+                         form + ":cboDep_input": payload[form + ":cboDep_input"], form + ":" + field: query or title}
+                if kind == "laboral":
+                    basic[form + ":modalidadAcceso"] = "03"
+                    if ref:
+                        basic[form + ":txtNroConv"] = payload[form + ":txtNroConv"]
+                if word:
+                    download = next((b for b in box.select("button[id]") if "Convocatoria en Word" in b.get("title", "")), None)
+                    if not download:
+                        raise ValueError("La convocatoria ya no ofrece el botón Word")
+                    binary = session.post(url, data={**basic, download["id"]: download["id"]}, timeout=45)
+                    binary.raise_for_status()
+                    if not binary.content.startswith(b"PK\x03\x04"):
+                        raise ValueError("SERVIR no devolvió un DOCX válido")
+                    target = Path(word)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(binary.content)
+                more = next((b for b in box.select("button[id]") if "Ver m" in b.get("title", "")), None)
+                if not more:
+                    raise ValueError("La convocatoria ya no ofrece el detalle")
+                page_response = session.post(url, data={**basic, more["id"]: more["id"]}, timeout=45)
+                page_response.raise_for_status()
+                if "detalle_" not in page_response.url:
+                    raise ValueError("SERVIR no abrió el detalle de la convocatoria")
+                return {**row, **parse_detail(page_response.text), "word": str(word) if word else None}
+            if not pages or pages[0] >= pages[1] or not next_button:
+                break
+            time.sleep(PAUSE)
+            payload["javax.faces.source"] = next_button
+            payload[next_button] = next_button
+            payload["javax.faces.ViewState"] = view
+        raise ValueError("No se encontró la convocatoria indicada; puede haber sido retirada")
 
 
 def main(argv=None):
@@ -183,11 +277,20 @@ def main(argv=None):
     se.add_argument("--campo", choices=["perfil", "puesto"], default="perfil",
                     help="laboral: perfil = the career a posting asks for (economia, psicologia); "
                          "puesto = words in the job title (supervisor, analista)")
+    de = sub.add_parser("detail", help="read the requirements behind 'Ver más', optionally download Word")
+    de.add_argument("id", help="SERVIR ID returned by search")
+    de.add_argument("--titulo", required=True, help="exact title returned by search")
+    de.add_argument("--tipo", choices=list(KINDS), required=True)
+    de.add_argument("--ref", help="convocatoria number from search (narrows generic titles)")
+    de.add_argument("--buscar", help="shorter search words when the full title returns nothing")
+    de.add_argument("--word", type=Path, help="save the DOCX summary here")
     args = ap.parse_args(argv)
-    if args.limit < 1 or args.limit > 500 or args.jobage is not None and args.jobage < 0:
+    if args.command == "search" and (args.limit < 1 or args.limit > 500 or args.jobage is not None and args.jobage < 0):
         ap.error("--limit debe ser 1..500 y --jobage no puede ser negativo")
     try:
-        print(json.dumps(search(args.query, args.location, args.tipo, args.limit, args.jobage, args.campo), ensure_ascii=False))
+        result = (search(args.query, args.location, args.tipo, args.limit, args.jobage, args.campo)
+                  if args.command == "search" else detail(args.id, args.titulo, args.tipo, word=args.word, ref=args.ref, query=args.buscar))
+        print(json.dumps(result, ensure_ascii=False))
         return 0
     except (requests.RequestException, ET.ParseError, ValueError, RuntimeError) as exc:
         print(json.dumps({"error": str(exc), "code": "SERVIR_ERROR"}, ensure_ascii=False), file=sys.stderr)

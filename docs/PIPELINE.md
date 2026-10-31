@@ -23,9 +23,10 @@ Corre cada consulta de `reports/busqueda/consultas.json` con la CLI de su portal
 
 | Opción | Qué hace |
 |---|---|
-| `--detalle` | Guarda el detalle de cada oferta nueva en `reports/detalles/<li\|bm\|ct\|sv\|pr>_<id>.json`. SERVIR solo entrega los datos visibles en el listado; sus bases completas están en el Word del portal. |
-| `--registrar` | Agrega las nuevas a `seen_jobs.json` con `status: "new"`, para que `/rank` las encuentre. Sin esta opción no toca el estado. |
+| `--detalle` | Guarda el detalle de cada oferta nueva en `reports/detalles/<li\|bm\|ct\|sv\|pr\|up>_<id>.json`. Para SERVIR abre «Ver más» y extrae el texto y los enlaces; el Word es opcional. Para Bolsa UP lee la ficha autenticada y su cierre. |
+| `--registrar` | Agrega las nuevas a `seen_jobs.json` con `status: "new"`, para que `/rank` las encuentre. En la Bolsa UP comprueba «Solicitudes» y marca las postuladas, incluso si la corrida no encuentra avisos nuevos. Sin esta opción no toca el estado. |
 | `--portal linkedin` | Solo las consultas de ese portal; también acepta `talento-peru` y `practicas-pe`. |
+| `--portal bolsa-universidad` | Usa la sesión local de Chrome para las consultas UP configuradas con `symplicity_account`; permite `q: ""` para ver todas por fecha y `paginas: 2` para avanzar. [Preparación](SYMPLICITY.md). No consulta la bolsa si no hay entradas de ese portal. |
 | `--jobage 7` | Cambia la antigüedad máxima (días) del archivo de consultas. |
 | `--perfil CLAUDE.md` | De dónde lee la línea `Abroad:`. |
 
@@ -36,6 +37,8 @@ Escribe:
 - `reports/busqueda/cobertura.json` (y una copia en la carpeta de la corrida): por portal, cuántas consultas corrieron, cuántas fallaron, cuántos resultados hubo y los mensajes de error.
 
 **LinkedIn** responde `429 Too Many Requests` si recibe muchas consultas seguidas. `buscar` espera 6 segundos entre una y otra y, tras dos 429 seguidos, deja de consultarlo en esa corrida y anota las omitidas como fallidas. Vuelve a correr más tarde con `--portal linkedin`.
+
+**Bolsa UP:** `buscar` y `actualizar` cubren descubrimiento, estado y página; para guardar un CV y enviar una solicitud desde el formulario interno usa el CLI de [SYMPLICITY.md](SYMPLICITY.md). Es una acción separada, con `--confirm`. La próxima corrida `buscar --portal bolsa-universidad --registrar` concilia las postulaciones verificadas en «Solicitudes» con `seen_jobs.json`; el archivo `up_solicitudes.json` queda en la carpeta de esa corrida. El formulario de un empleador externo se completa en su sitio.
 
 ### `portales`: cobertura y enlaces
 
@@ -53,6 +56,8 @@ Sin usar la red, rehace `cobertura.json` con el registro de portales y la últim
 
 Si un paso falla, los demás siguen y el comando termina con código 1.
 
+La página ofrece atajos por tipo de puesto (Trabajo de campo, RR. HH., Prácticas, Sector público y Otros). Sector público identifica ofertas evaluadas de Talento Perú/SERVIR y las marcadas manualmente; si todavía no hay ninguna, el filtro enlaza los avisos nuevos de SERVIR sin evaluar. Se combinan con búsqueda, acción, modalidad y demás filtros. Para abrirla enfocada en una categoría, agrega `"filtro_inicial": "campo"` a `consultas.json` o usa `actualizar --filtro-inicial campo`. El JSON de revisión incluye las mismas etiquetas en `tags`.
+
 ### `estado`: qué hacer hoy
 
 Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cómo postular y si ya hay CV a medida) y las primeras ofertas para postular. `--json` imprime lo mismo como datos, junto con las que aún no tienen CV.
@@ -62,6 +67,7 @@ Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cóm
 ```json
 {
  "jobage": 14,
+ "filtro_inicial": "campo",
  "excluir_titulo": ["senior", "jefe", "gerente"],
  "consultas_manuales": ["practicante finanzas", "asistente de investigación"],
  "consultas": [
@@ -83,12 +89,13 @@ Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cóm
 - Prácticas.pe consulta por carrera (`q`) y región (`l`: Lima o Perú). Su listado no indica cuándo se publicó cada aviso: `--detalle` guarda esa fecha para las ofertas nuevas. El filtro `jobage` no se aplica en ese portal hasta leer las fichas.
 - `campo` para SERVIR (laboral): `perfil` (por defecto) busca la **carrera** que pide el aviso (`economia`, `psicologia`); `puesto` busca palabras del **cargo** (`supervisor`, `analista de recursos humanos`). No son intercambiables: el 25/10, "supervisor" dio 0 como perfil y 13 como puesto, y "psicologia" dio 30 como perfil y 0 como puesto.
 - `paginas` (opcional, por consulta o en la raíz del archivo): cuántas páginas leer en Computrabajo y Bumeran (20 avisos cada una) y LinkedIn (10). Por defecto 1, máximo 10; se detiene cuando una página viene vacía o repite la anterior. `paginas_linkedin` en la raíz fija aparte el valor de LinkedIn, que limita las ráfagas. Sin páginas extra, una consulta amplia se queda con lo publicado ese día.
-- `tipo` para SERVIR: `laboral`, `practicas` o `ambos`. Una consulta vacía de prácticas obtiene todas las de Lima. SERVIR identifica cada aviso por entidad, título y número de convocatoria, pues no publica URL individual.
+- `tipo` para SERVIR: `laboral`, `practicas` o `ambos`. Una consulta vacía de prácticas obtiene todas las de Lima. SERVIR identifica cada aviso por entidad, título y número de convocatoria; `url` queda vacío salvo que se haya verificado una ficha oficial exacta. El formulario común se conserva en `search_url`. Un perfil puede guardar enlaces verificados en `reports/busqueda/enlaces_oficiales.json` como `{ "SERVIR:ID": "https://..." }`; no se generan enlaces individuales por conjetura.
+- Para revisar una convocatoria concreta sin LLM: `python tools/pe_servir.py detail SERVIR:ID --titulo "TÍTULO" --tipo laboral --ref "NÚMERO"`. La salida JSON incluye el texto de «Ver más», enlaces de la entidad y contacto cuando constan. Usa `--word reports/detalles/SERVIR_ID.docx` solo si necesitas guardar el resumen original. La fecha de fin de publicación de SERVIR no sustituye al plazo de postulación; comprueba el cronograma de la entidad.
 - `l`: lugar. Para LinkedIn, `"Lima, Peru"`; para Bumeran y Computrabajo, una región o un distrito (`"San Isidro"`).
 - `remote` (opcional): `remote` o `hybrid`, para forzar la modalidad.
 - `excluir_titulo`: palabras que descartan una oferta por su título, sin Claude.
 - `consultas_manuales`: las consultas para las que se arman enlaces en los portales sin CLI. Si falta, se usan las primeras consultas en Perú.
-- `portales` (opcional): cambia o agrega entradas al registro de portales, por `id` (por ejemplo, la URL de la bolsa de tu universidad: `{"id": "bolsa-universidad", "home": "https://..."}`). Esas bolsas exigen iniciar sesión y se buscan a mano.
+- `portales` (opcional): cambia o agrega entradas al registro de portales, por `id` (por ejemplo, la URL de la bolsa de tu universidad: `{"id": "bolsa-universidad", "home": "https://..."}`). La Bolsa UP tiene [CLI local optativo](SYMPLICITY.md); otras bolsas pueden requerir búsqueda manual.
 
 ## Dónde se busca: la línea `Abroad`
 
@@ -116,7 +123,7 @@ La página dice qué regla aplica y tiene un interruptor para ver lo que deja fu
 `reports/revision-ofertas.html` es un solo archivo, sin conexiones a internet: se abre con doble clic, en el teléfono o en cualquier hosting estático. Tiene:
 
 - "Cierran en los próximos 7 días" en un acordeón, con cómo postular, el CV y "Ver ficha";
-- **Para decidir**, en lista por defecto, con carrusel opcional (‹ ›, teclas ← →, deslizar, una cinta de colores por acción para saltar); filtros por texto, acción, modalidad, frescura, zona, cierre y revisadas, más accesos rápidos por modalidad, distrito, rubro y tipo de empresa; orden por acción, encaje, cierre, frescura, reputación o puesto;
+- **Para decidir**, en lista con atajos por tipo de puesto y filtros por texto, acción, modalidad, frescura, zona, cierre y revisadas; cada oferta se abre para ver el detalle. Se puede ordenar por acción, encaje, cierre, frescura, reputación o puesto;
 - por oferta: encaje, fortalezas, brechas, **frescura vacante**, cómo postular, **CV sugerido** cuando ya hay un PDF a medida (descargable desde la página), contactos, personas del área, lugar y rubro, reputación;
 - las ofertas cuya fecha de cierre ya pasó, aparte ("Cerradas"), igual que las descartadas;
 - la regla de `Abroad` y la cobertura de portales;
