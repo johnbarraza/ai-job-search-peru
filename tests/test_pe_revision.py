@@ -29,6 +29,37 @@ def ranked(**over):
     return base
 
 
+class Sueldo(unittest.TestCase):
+    MYWORKIN = {"metadata": {"source": "MyWorkIn (myworkin.ai/salaries)"}, "companies": [{
+        "company": "Interbank", "categories": {
+            "Practicante": {"count": 2, "index": "S/ 1,017 – 1,243"},
+            "Analista de Riesgos": {"count": 5, "index": "S/ 3,000 – 4,000"}}}]}
+
+    def salaries(self, doc=None):
+        path = Path(tempfile.mkdtemp()) / "salary_data.json"
+        path.write_text(json.dumps(doc or self.MYWORKIN), encoding="utf-8")
+        return pr.load_salaries(path)
+
+    def test_posting_figure_first_then_myworkin_estimate_at_the_same_level(self):
+        sal = self.salaries()
+        self.assertEqual(pr.salary_of(ranked(salary="S/ 1,500"), sal), ("S/ 1,500", "según el aviso"))
+        value, note = pr.salary_of(ranked(title="Prácticas de Riesgos", company="INTERBANK S.A.A."), sal)
+        self.assertEqual(value, "S/ 1,017 – 1,243", "an intern never gets the analyst range")
+        self.assertIn("estimado MyWorkIn · Practicante", note)
+        self.assertEqual(pr.salary_of(ranked(title="Gerente de Riesgos", company="Interbank"), sal)[0], "Sin dato")
+        self.assertEqual(pr.salary_of(ranked(company="Otra"), sal)[0], "Sin dato")
+
+    def test_another_source_is_not_read_as_soles(self):
+        self.assertEqual(self.salaries({"metadata": {"source": "union index"}, "companies": [{"company": "Interbank"}]}), {})
+
+    def test_page_and_json_show_it(self):
+        data = pr.collect({"seen": {"k": ranked(title="Practicante", company="Interbank")}}, [],
+                          Path(tempfile.mkdtemp()), salaries=self.salaries())
+        self.assertIn("S/ 1,017 – 1,243", pr.render(data, date(2026, 10, 18), None))
+        item = pr.export(data, date(2026, 10, 18), None)["para_decidir"][0]
+        self.assertEqual(item["salary"], "S/ 1,017 – 1,243")
+
+
 class Actions(unittest.TestCase):
     def test_applied_takes_precedence_over_deadline_and_freshness(self):
         entry = ranked(application_status="applied", applied_date="2026-10-24", deadline="2026-10-25")

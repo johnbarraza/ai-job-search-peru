@@ -46,7 +46,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -75,8 +75,13 @@ REVIEW_JSON = Path("reports/revision-ofertas.json")
 PORTALS = {"linkedin": ("li", "li"), "bumeran": ("bu", "bm"), "computrabajo": ("ct", "ct"),
            "talento-peru": ("sv", "sv"), "practicas-pe": ("pr", "pr"),
            "bolsa-universidad": ("up", "up")}
-LINKEDIN_PAUSE = 6  # seconds between LinkedIn calls: it answers bursts with 429
-LINKEDIN_MAX_429 = 2  # consecutive 429s before the run stops asking LinkedIn
+# LinkedIn answers bursts with 429 and then blocks the IP for hours. reports/busqueda/
+# linkedin-control.json keeps, across runs, when it may be asked again and which query is next.
+LINKEDIN_PAUSE = 10  # seconds between requests within one run
+LINKEDIN_SEARCHES = 8  # searches per run; the rest wait for the next run, in rotation
+LINKEDIN_DETAILS = 12  # posting details per run
+LINKEDIN_REFRESH = timedelta(hours=20)  # one run a day, even if today's starts a bit earlier
+LINKEDIN_429_BACKOFF = timedelta(hours=48)
 PAGED = {"linkedin", "bumeran", "computrabajo", "bolsa-universidad"}  # CLIs that take --page
 MAX_PAGES = 10
 
@@ -299,9 +304,36 @@ def cmd_buscar(args) -> int:
             for p in {c["portal"] for c in queries}}
     new: dict[str, dict] = {}
     excluded = skipped_abroad = 0
-    last_linkedin, linkedin_429 = 0.0, 0
+    control_file = SEARCH_DIR / "linkedin-control.json"
+    try:
+        linkedin_control = json.loads(control_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        linkedin_control = {}
+    if not isinstance(linkedin_control, dict):
+        linkedin_control = {}
+    linkedin_indices = [i for i, c in enumerate(queries) if c["portal"] == "linkedin"]
+    cursor = int(linkedin_control.get("cursor") or 0) % max(1, len(linkedin_indices))
+    selected = {linkedin_indices[(cursor + n) % len(linkedin_indices)]
+                for n in range(min(LINKEDIN_SEARCHES, len(linkedin_indices)))}
+    linkedin_control["cursor"] = (cursor + len(selected)) % max(1, len(linkedin_indices))
+    last_linkedin, linkedin_searches, linkedin_details, linkedin_429 = 0.0, 0, 0, False
+
+    def save_linkedin(blocked=False):
+        delay = LINKEDIN_429_BACKOFF if blocked else LINKEDIN_REFRESH
+        linkedin_control["next_at"] = (datetime.now() + delay).isoformat(timespec="seconds")
+        linkedin_control["motivo"] = "429 de LinkedIn" if blocked else "última corrida"
+        control_file.parent.mkdir(parents=True, exist_ok=True)
+        control_file.write_text(json.dumps(linkedin_control, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    try:
+        linkedin_paused = datetime.now() < datetime.fromisoformat(linkedin_control.get("next_at") or "")
+    except (TypeError, ValueError):
+        linkedin_paused = False
     for i, c in enumerate(queries, 1):
         portal, run = c["portal"], runs[c["portal"]]
+        if portal == "linkedin" and (linkedin_paused or linkedin_429 or i - 1 not in selected):
+            run["omitidas"] = run.get("omitidas", 0) + 1
+            continue
         place = c.get("l") or ""
         cmd = cli(portal) + ["search"]
         if portal == "bolsa-universidad":
@@ -335,23 +367,23 @@ def cmd_buscar(args) -> int:
         results, failed, seen_page = [], None, set()
         for page in range(1, pages + 1):
             if portal == "linkedin":
-                if linkedin_429 >= LINKEDIN_MAX_429:
-                    failed = "omitida (LinkedIn limitó las consultas)" if page == 1 else None
-                    break
-                wait = LINKEDIN_PAUSE - (time.monotonic() - last_linkedin)
-                if wait > 0:
-                    time.sleep(wait)
+                if page > 1 and linkedin_searches >= LINKEDIN_SEARCHES:
+                    break  # further pages draw on the same per-run budget
+                time.sleep(max(0, LINKEDIN_PAUSE - (time.monotonic() - last_linkedin)))
                 last_linkedin = time.monotonic()
+                linkedin_searches += 1
+                save_linkedin()
             page_cmd = cmd + (["--page", str(page)] if page > 1 else [])
             data, error = run_json(page_cmd, run_dir / (stem + (f"-p{page}" if page > 1 else "") + ".json"))
             if error:
-                linkedin_429 = linkedin_429 + 1 if portal == "linkedin" and "429" in error else 0
+                if portal == "linkedin" and "429" in error:
+                    linkedin_429 = True  # stop asking: every further request lengthens the block
+                    save_linkedin(blocked=True)
                 if page == 1:
                     failed = error
                 else:  # the first pages already came back: keep them, note the gap
                     run["errores"].append(f"{c.get('q')} · {place} · página {page}: {error}")
                 break
-            linkedin_429 = 0
             rows = [p for p in (data or {}).get("results") or [] if isinstance(p, dict)]
             ids = {pe_frescura.posting_id(p) for p in rows} - seen_page
             if not ids:
@@ -410,7 +442,11 @@ def cmd_buscar(args) -> int:
             if not out.is_file() or (p["portal"] == "talento-peru" and "description" not in json.loads(out.read_text(encoding="utf-8"))):
                 print(f"detalle {j}/{len(new)}: {p['title']}")
                 if p["portal"] == "linkedin":
-                    time.sleep(LINKEDIN_PAUSE)
+                    if linkedin_429 or linkedin_details >= LINKEDIN_DETAILS:
+                        continue  # /rank reads the posting page itself
+                    time.sleep(max(0, LINKEDIN_PAUSE - (time.monotonic() - last_linkedin)))
+                    last_linkedin = time.monotonic()
+                    linkedin_details += 1
                 if p["portal"] == "talento-peru":
                     detail, error = run_json(cli(p["portal"]) + ["detail", p["id"], "--titulo", p["title"],
                                                "--tipo", p["type"], "--ref", p.get("ref") or ""], out)
@@ -422,6 +458,9 @@ def cmd_buscar(args) -> int:
                         p["date"] = detail.get("date") or p["date"]
                         p["deadline"] = detail.get("deadline") or p["deadline"]
                 if error:
+                    if p["portal"] == "linkedin" and "429" in error:
+                        linkedin_429 = True
+                        save_linkedin(blocked=True)
                     runs[p["portal"]]["errores"].append(f"detalle {p['id']}: {error}")
                     continue
             p["detail"] = str(out).replace("\\", "/")
@@ -463,7 +502,7 @@ def cmd_buscar(args) -> int:
                 "id": p["id"], "title": p.get("title"), "company": p.get("company"), "url": p.get("url"),
                 "search_url": p.get("search_url"), "ref": p.get("ref"), "location": p.get("location"),
                 "first_seen": today, "posted_date": p.get("date"), "deadline": p.get("deadline"),
-                "validThrough": p.get("validThrough"),
+                "validThrough": p.get("validThrough"), "salary": p.get("salary"),
                 "fit": None, "status": "applied" if p.get("already_applied") else "new",
                 "portal": f'{p["portal"]}-search', "source": "cli",
                 "modality": p.get("modality"), "level": p.get("level"), "detail": p.get("detail"),
@@ -494,6 +533,9 @@ def cmd_buscar(args) -> int:
               + (f" · {run['fallidas']} fallidas" if run["fallidas"] else ""))
     if skipped_abroad:
         print(f"{skipped_abroad} consultas fuera del Perú omitidas: el perfil no pide buscar en el extranjero (línea Abroad)")
+    if runs.get("linkedin", {}).get("omitidas"):
+        print(f"linkedin: {runs['linkedin']['omitidas']} consultas en espera · vuelve a consultarse desde "
+              f"{linkedin_control.get('next_at')} ({linkedin_control.get('motivo')}; {control_file})")
     print(f"\n{len(new)} detectadas (no estaban en {args.state}) · "
           f"{report['ya_postuladas_bolsa_up']} ya postuladas en Bolsa UP · {excluded} excluidas por título"
           f" → {SEARCH_DIR / 'nuevas.json'}" + (" · registradas como 'new'" if args.registrar and new else ""))
@@ -501,7 +543,7 @@ def cmd_buscar(args) -> int:
     print(f"Cobertura y enlaces de portales: {COVERAGE} (python tools/pe_pipeline.py portales)")
     if new and not args.registrar:
         print("Para evaluarlas: usa /rank con cualquier agente leyendo reports/busqueda/nuevas.json, o vuelve a correr con --registrar.")
-    return 0 if all(r["ok"] for r in runs.values()) or not runs else 2
+    return 0 if all(r["ok"] or not r["consultas"] for r in runs.values()) else 2  # a portal on hold is not a failure
 
 
 def cmd_portales(args) -> int:

@@ -58,8 +58,9 @@ class Buscar(unittest.TestCase):
     def with_abroad(self, line):
         (self.tmp / "perfil.md").write_text(f"- **Abroad:** {line}" if line else "", encoding="utf-8")
         (self.tmp / "q.json").write_text(json.dumps({"consultas": [
+            {"portal": "linkedin", "q": "practicante", "l": "Lima, Peru"},
             {"portal": "linkedin", "q": "research assistant", "l": "Chile"},
-            {"portal": "linkedin", "q": "practicante", "l": "Lima, Peru"}]}), encoding="utf-8")
+            {"portal": "linkedin", "q": "analista", "l": "Lima, Peru"}]}), encoding="utf-8")
 
     def test_lists_only_postings_not_seen_and_not_excluded(self):
         self.assertEqual(self.run_cmd(), 0)
@@ -97,18 +98,38 @@ class Buscar(unittest.TestCase):
     def test_without_an_abroad_line_queries_abroad_are_skipped(self):
         self.with_abroad("")
         self.run_cmd()
-        self.assertEqual([c[0][-1] for c in self.calls], ["Lima, Peru"])
+        self.assertEqual([c[0][-1] for c in self.calls], ["Lima, Peru", "Lima, Peru"])
 
     def test_remote_only_runs_abroad_queries_remote_and_records_their_errors(self):
         self.with_abroad("remote only, for research assistant roles")
         self.assertEqual(self.run_cmd(), 0)
-        chile = self.calls[0][0]
+        self.assertNotIn("--remote", self.calls[0][0])
+        chile = self.calls[1][0]
         self.assertEqual(chile[chile.index("--remote") + 1], "remote")
-        self.assertNotIn("--remote", self.calls[1][0])
+        self.assertEqual(len(self.calls), 2, "a 429 stops LinkedIn for the rest of the run")
         cov = json.loads((self.tmp / "reports/busqueda/cobertura.json").read_text(encoding="utf-8"))
         li = next(p for p in cov["portales"] if p["id"] == "linkedin")
         self.assertEqual((li["ok"], li["fallidas"]), (1, 1))
         self.assertIn("429", li["errores"][0])
+        control = json.loads((self.tmp / "reports/busqueda/linkedin-control.json").read_text(encoding="utf-8"))
+        self.assertEqual(control["motivo"], "429 de LinkedIn")
+
+    def test_linkedin_waits_for_its_refresh_and_rotates_queries(self):
+        self.with_abroad("remote only")
+        (self.tmp / "q.json").write_text(json.dumps({"consultas": [
+            {"portal": "linkedin", "q": f"analista {n}", "l": "Lima, Peru"} for n in range(10)]}), encoding="utf-8")
+        self.assertEqual(self.run_cmd(), 0)
+        self.assertEqual(len(self.calls), pp.LINKEDIN_SEARCHES)
+        self.assertEqual(self.run_cmd(), 0, "on hold is not a failure")
+        self.assertEqual(len(self.calls), pp.LINKEDIN_SEARCHES, "the second run the same day asks nothing")
+        control_file = self.tmp / "reports/busqueda/linkedin-control.json"
+        control = json.loads(control_file.read_text(encoding="utf-8"))
+        control["next_at"] = "2000-01-01T00:00:00"
+        control_file.write_text(json.dumps(control), encoding="utf-8")
+        self.calls.clear()
+        self.run_cmd()
+        asked = {cmd[cmd.index("-q") + 1] for cmd, _ in self.calls}
+        self.assertTrue({"analista 8", "analista 9"} <= asked, "next run resumes the rotation")
 
     def test_registrar_adds_new_postings_for_rank(self):
         self.assertEqual(self.run_cmd("--registrar"), 0)

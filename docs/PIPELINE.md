@@ -36,7 +36,7 @@ Escribe:
 - `reports/busqueda/nuevas.json`: las nuevas, con portal, título, empresa, lugar, fecha, modalidad, nivel y la consulta que las trajo;
 - `reports/busqueda/cobertura.json` (y una copia en la carpeta de la corrida): por portal, cuántas consultas corrieron, cuántas fallaron, cuántos resultados hubo y los mensajes de error.
 
-**LinkedIn** responde `429 Too Many Requests` si recibe muchas consultas seguidas. `buscar` espera 6 segundos entre una y otra y, tras dos 429 seguidos, deja de consultarlo en esa corrida y anota las omitidas como fallidas. Vuelve a correr más tarde con `--portal linkedin`.
+**LinkedIn** responde `429 Too Many Requests` si recibe muchas consultas seguidas y luego bloquea la IP por horas. `buscar` lo cuida así: 10 segundos entre pedidos, como máximo 8 búsquedas y 12 fichas por corrida (las demás consultas esperan a la siguiente, en rotación), una corrida de LinkedIn cada 20 horas y, ante el primer 429, deja de consultarlo y espera 48 horas. La fecha en que vuelve a consultarse queda en `reports/busqueda/linkedin-control.json` y se imprime al final; los demás portales corren igual. Los límites son las constantes `LINKEDIN_*` de `tools/pe_pipeline.py`.
 
 **Bolsa UP:** `buscar` y `actualizar` cubren descubrimiento, estado y página; para guardar un CV y enviar una solicitud desde el formulario interno usa el CLI de [SYMPLICITY.md](SYMPLICITY.md). Es una acción separada, con `--confirm`. La próxima corrida `buscar --portal bolsa-universidad --registrar` concilia las postulaciones verificadas en «Solicitudes» con `seen_jobs.json`; el archivo `up_solicitudes.json` queda en la carpeta de esa corrida. El formulario de un empleador externo se completa en su sitio.
 

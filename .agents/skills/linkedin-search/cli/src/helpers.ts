@@ -14,9 +14,9 @@ export function writeError(error: string, code: string): void {
 
 const UA = "Mozilla/5.0 (compatible; linkedin-search-cli/1.0)"
 
-/** Fetch HTML with exponential backoff on 429/5xx. Returns "" on a 404. */
+/** Fetch HTML with bounded retries on server failures. A 429 ends immediately. */
 export async function htmlFetch(url: string): Promise<string> {
-  const maxRetries = 6
+  const maxRetries = 2
   let delay = 500
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const response = await fetch(url, {
@@ -29,7 +29,10 @@ export async function htmlFetch(url: string): Promise<string> {
       redirect: "follow",
       signal: AbortSignal.timeout(15000),
     })
-    if (response.status === 429 || response.status >= 500) {
+    if (response.status === 429) {
+      throw new Error(`Request failed: 429 ${response.statusText}`)
+    }
+    if (response.status >= 500) {
       if (attempt === maxRetries) {
         throw new Error(`Request failed: ${response.status} ${response.statusText}`)
       }

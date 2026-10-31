@@ -400,6 +400,61 @@ def load_ratings(research_dir: Path, company: str) -> list[dict] | None:
     return ratings if isinstance(ratings, list) else []
 
 
+LEGAL_WORDS = {"sa", "saa", "sac", "srl", "eirl", "sociedad", "anonima", "abierta", "cerrada"}
+
+
+def _company_key(name: str) -> str:
+    folded = unicodedata.normalize("NFKD", (name or "").lower())
+    words = re.findall(r"[a-z0-9]+", "".join(c for c in folded if not unicodedata.combining(c)).replace(".", ""))
+    return " ".join(w for w in words if w not in LEGAL_WORDS)
+
+
+def load_salaries(path: Path) -> dict[str, dict]:
+    """MyWorkIn companies saved by tools/myworkin_salaries.py (salary_data.json), by company name."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(doc, dict) or not str((doc.get("metadata") or {}).get("source") or "").startswith("MyWorkIn"):
+        return {}  # another source's index is not a soles range
+    return {_company_key(c.get("company")): c for c in doc.get("companies") or [] if isinstance(c, dict)}
+
+
+SALARY_STOP = {"de", "del", "la", "el", "los", "las", "y", "en", "para", "con"}
+INTERN_WORDS = {"practica", "practicas", "practicante", "practicantes", "pasante", "pasantia"}
+SALARY_LEVELS = {"practicante", "trainee", "asistente", "auxiliar", "analista", "junior", "senior", "especialista",
+               "coordinador", "supervisor", "jefe", "subgerente", "gerente"}
+
+
+def _salary_words(text: str) -> set[str]:
+    folded = unicodedata.normalize("NFKD", (text or "").lower())
+    words = re.findall(r"[a-z]+", "".join(c for c in folded if not unicodedata.combining(c)))
+    return {"practicante" if w in INTERN_WORDS else w for w in words if w not in SALARY_STOP and len(w) > 2}
+
+
+def salary_of(r: dict, salaries: dict[str, dict]) -> tuple[str, str]:
+    """(value, note) for the facts strip: the posting's own figure first; else MyWorkIn's range for
+    the role sharing most words with the title and the same level (an intern never gets an analyst's
+    range), labelled an estimate."""
+    if r.get("salary"):
+        return str(r["salary"]), "según el aviso"
+    company = salaries.get(_company_key(r.get("company") or ""))
+    title = _salary_words(r.get("title") or "")
+    level = title & SALARY_LEVELS
+    best = None
+    for role, cat in ((company or {}).get("categories") or {}).items():
+        words = _salary_words(role)
+        if level and not level <= words:
+            continue
+        key = (len(title & words), (cat or {}).get("count") or 0)
+        if key[0] and (best is None or key > best[0]):
+            best = (key, role, cat)
+    if best:
+        (_, count), role, cat = best
+        return str(cat.get("index")), f"estimado MyWorkIn · {role} · {count} aporte{'s' if count != 1 else ''}"
+    return "Sin dato", "el aviso no lo indica"
+
+
 def fmt_es(value) -> str:
     """4.26 -> '4,26'; 20188 -> '20.188' (Peruvian Spanish separators)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -675,7 +730,7 @@ def fresh_from_state(entry: dict, today: date) -> dict | None:
 
 
 def collect(state: dict, fresh_rows: list[dict], research_dir: Path, context_rows: list[dict] | None = None,
-            today: date | None = None) -> dict:
+            today: date | None = None, salaries: dict[str, dict] | None = None) -> dict:
     today = today or date.today()
     seen = state.get("seen") or {}
     fresh_by_id = {pe_frescura.posting_id(r): r for r in fresh_rows}
@@ -707,6 +762,7 @@ def collect(state: dict, fresh_rows: list[dict], research_dir: Path, context_row
             row["action"] = action_for(e, fresh, today)
             row["closes"] = deadline_info(e, today)
             row["ratings"] = load_ratings(research_dir, e.get("company") or "")
+            row["sueldo"] = salary_of(e, salaries or {})
             row["logo"] = logo_uri(research_dir, logos, e.get("company") or "")
             row["people"] = people_for(load_people(research_dir, e.get("company") or ""), e.get("title") or "")
             row["location"] = posting_location(e)
@@ -951,7 +1007,7 @@ details.sec .track{margin-top:12px}
 .seen-btn:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep)}
 .seen-btn input{margin:0;width:16px;height:16px;accent-color:var(--accent)}
 .d-src{font-size:12px;color:var(--dim)}
-.facts{margin:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.facts{margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .facts>div{padding:12px 16px;background:var(--surface);border-right:1px solid var(--line);min-width:0}.facts>div:last-child{border-right:0}
 .facts dt{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .facts dd{margin:0}.facts .v{margin-top:4px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}.facts .n{margin-top:2px;font-size:12px;color:var(--dim)}
@@ -1423,6 +1479,7 @@ def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: 
          "fecha que escribe la oferta" if closes["bucket"] != "sin" else "el aviso no la indica"),
         ("Lugar", places, f"modalidad: {modality.lower()}"),
         ("Rubro", rb.get("label") or "Sin identificar", " · ".join(employer_kinds(rb))),
+        ("Sueldo", *(r.get("sueldo") or ("Sin dato", "el aviso no lo indica"))),
     ]
     dl = "".join(f'<div><dt>{esc(k)}</dt><dd class="v">{esc(v)}</dd>' + (f'<dd class="n">{esc(n)}</dd>' if n else "") + "</div>"
                  for k, v, n in facts)
@@ -1710,7 +1767,8 @@ def export(data: dict, today: date, title: str | None, initial_focus: str = "") 
             "modality": r.get("modality"), "level": r.get("level"), "location": r.get("location"),
             "abroad": bool(r.get("abroad")), "abroad_onsite": bool(r.get("abroad_onsite")),
             "districts": lg.get("districts") or [], "zones": lg.get("zones") or [], "address": lg.get("address"),
-            "sector": rb.get("label"), "how_to_apply": r.get("how_to_apply"), "contact": r.get("contact"),
+            "sector": rb.get("label"), "salary": None if (r.get("sueldo") or ("Sin dato",))[0] == "Sin dato" else r["sueldo"][0],
+            "salary_source": None if (r.get("sueldo") or ("Sin dato",))[0] == "Sin dato" else r["sueldo"][1], "how_to_apply": r.get("how_to_apply"), "contact": r.get("contact"),
             "cv": r.get("cv") if r.get("cv_name") else None,
             "word": str(servir_word(r).relative_to(ROOT)).replace("\\", "/") if servir_word(r) else None,
             "strengths": r.get("strengths") or [], "gaps": r.get("gaps") or [], "warnings": r.get("warnings") or [],
@@ -1750,6 +1808,8 @@ def main(argv=None) -> int:
     ap.add_argument("--frescura", type=Path, default=Path("reports/frescura.json"),
                     help="tools/pe_frescura.py --json output (skipped when missing)")
     ap.add_argument("--research", type=Path, default=Path("company_research"))
+    ap.add_argument("--sueldos", type=Path, default=Path("salary_data.json"),
+                    help="MyWorkIn ranges saved by tools/myworkin_salaries.py, used when a posting states no pay")
     ap.add_argument("--contexto", type=Path, default=Path("reports/contexto.json"),
                     help="tools/pe_contexto.py --json output: workplace and sector (skipped when missing)")
     ap.add_argument("--out", type=Path, default=Path("reports/revision-ofertas.html"))
@@ -1792,7 +1852,7 @@ def main(argv=None) -> int:
         except (OSError, ValueError, AttributeError) as exc:
             print(f"cannot read {args.contexto}: {exc}", file=sys.stderr)
             return 1
-    data = collect(state, fresh_rows, args.research, context_rows, args.today)
+    data = collect(state, fresh_rows, args.research, context_rows, args.today, load_salaries(args.sueldos))
     data["abroad_pref"] = read_abroad(args.perfil)
     try:
         data["cobertura"] = json.loads(args.cobertura.read_text(encoding="utf-8"))
