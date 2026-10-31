@@ -10,7 +10,7 @@ La búsqueda y la página de revisión funcionan **sin LLM**. Claude Code, Codex
 
 ## Empezar
 
-Requiere Python 3.10+; algunos portales también usan [Bun](https://bun.sh). Para instalación completa y configuración del perfil, lee [SETUP.md](SETUP.md).
+Requiere Python 3.10+; algunos portales también usan [Bun](https://bun.sh). Si es tu primera vez con Python o con entornos virtuales, sigue [docs/INSTALAR.md](docs/INSTALAR.md) (o corre `bash instalar.sh`): programas necesarios, entorno virtual, uso diario, actualizaciones e instrucciones para un asistente de IA. Las dependencias de Python, con versión fija, están en `requirements.txt`. Para la configuración completa del perfil, lee [SETUP.md](SETUP.md).
 
 ### 1. Fork and clone
 

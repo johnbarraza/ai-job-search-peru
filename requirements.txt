@@ -1,0 +1,6 @@
+# Every Python package the tools use, at an exact version.
+# Install inside the virtual environment: python -m pip install -r requirements.txt
+# (step by step in docs/INSTALAR.md). Each file below is pinned on its own and updated by Dependabot.
+-r tools/requirements-servir.txt
+-r tools/requirements-symplicity.txt
+-r tools/requirements-pdf.txt

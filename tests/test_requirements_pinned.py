@@ -18,6 +18,9 @@ class Pinned(unittest.TestCase):
                 if not line:
                     continue
                 with self.subTest(file=f.relative_to(REPO).as_posix(), line=line):
+                    if line.startswith("-r "):  # an included file is checked on its own
+                        self.assertTrue((f.parent / line[3:].strip()).is_file())
+                        continue
                     self.assertRegex(line, r"^[A-Za-z0-9_.\-\[\]]+==[0-9][A-Za-z0-9.\-+]*$")
 
 

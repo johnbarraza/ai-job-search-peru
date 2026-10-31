@@ -1,0 +1,2 @@
+# Reads the text of a compiled PDF: tools/verify_pdf.py (ATS check) and cv/generar_cvs.py (page count).
+pypdf==6.21.4

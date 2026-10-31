@@ -6,6 +6,10 @@ framework_version: 1.0.0
 
 This workspace is structured to manage job search activities, scraper tools, CVs, cover letters, and interview preparation.
 
+## Installing and running
+
+To install or run the tools for someone, follow [docs/INSTALAR.md](docs/INSTALAR.md) (section "Instrucciones para un asistente de IA", or `bash instalar.sh`): use the repository's `.venv`, install only `requirements.txt` (exact pins) and `python tools/install_portal_clis.py`, never install system programs or push without asking.
+
 ## Thin-Pointer Design (Single Source of Truth)
 
 To prevent duplication and configuration drift across different AI agent frameworks (Claude Code, Google Antigravity, Codex, Cursor, Gemini CLI, etc.), this workspace uses a unified thin-pointer design. All agent runtimes should load the canonical specifications and candidate profiles from the files and directories below:
