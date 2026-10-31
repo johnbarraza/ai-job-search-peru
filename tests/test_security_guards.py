@@ -802,6 +802,18 @@ class SubdirectoryGitignoreTests(GuardRepoFixture):
         result = run_guards(self.root)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_nested_checkout_keeps_its_own_rules(self):
+        # A profile worktree (perfiles/<nombre>) or a submodule has a .git file and its
+        # own .gitignore, which governs that checkout, not this one. Git refuses to
+        # track a path named .git, so a commit cannot fake one to hide a rule.
+        for name in ("perfiles/ana", "vendor/lib"):
+            sub = self.root / name
+            sub.mkdir(parents=True)
+            (sub / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+            (sub / ".gitignore").write_text("!cv/main_example.tex\n", encoding="utf-8")
+        result = run_guards(self.root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 class SettingsKeyAllowlistTests(GuardRepoFixture):
     """GHSA-cqcv-crx7-x7q7: the guard checked allow, ask, deny and hooks and

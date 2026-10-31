@@ -592,10 +592,14 @@ def _gitignore_lines(path: Path) -> list[str]:
 
 
 def _other_gitignores():
-    """Every .gitignore below the root, skipping .git and installed dependencies."""
+    """Every .gitignore below the root, skipping .git, installed dependencies and nested
+    checkouts (a submodule or a profile worktree carries its own .git and its own rules)."""
     import os
 
     for dirpath, dirnames, filenames in os.walk(ROOT):
+        if Path(dirpath) != ROOT and (".git" in filenames or ".git" in dirnames):
+            dirnames[:] = []
+            continue
         dirnames[:] = sorted(d for d in dirnames if d not in (".git", "node_modules"))
         if ".gitignore" in filenames and Path(dirpath) != ROOT:
             yield Path(dirpath) / ".gitignore"
