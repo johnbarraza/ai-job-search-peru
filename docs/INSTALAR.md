@@ -122,7 +122,7 @@ python tools/pe_pipeline.py estado
 2. `actualizar` arma la página de revisión.
 3. `estado` dice qué cierra pronto.
 
-Abre `reports\revision-ofertas.html` con doble clic: es una página que funciona sin internet. Más opciones en [PIPELINE.md](PIPELINE.md).
+Abre `reports\revision-ofertas.html` con doble clic: es una página que funciona sin internet. Sin IA, la página abre la tabla «Nuevas de la última búsqueda»: fecha, cierre, lugar, modalidad, sueldo cuando el aviso lo publica y el enlace a cada aviso, con filtros por portal y por consulta. Con un agente, `/rank` agrega el encaje con tu perfil y `/apply` prepara el CV. Más opciones en [PIPELINE.md](PIPELINE.md).
 
 LinkedIn se consulta como máximo una vez cada 20 horas, para que no bloquee tu conexión. Si una corrida dice que LinkedIn está "en espera", es normal: los demás portales se buscan igual.
 
