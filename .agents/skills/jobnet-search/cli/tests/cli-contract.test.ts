@@ -44,6 +44,6 @@ describe("Jobnet CLI error contract", () => {
     expect(error.ok).toBe(false);
     expect(error.error.kind).toBe("validation");
     expect(error.error.option).toBe("page");
-    expect(error.error.message).toContain("Expected number");
+    expect(error.error.message).toContain("expected number");
   });
 });

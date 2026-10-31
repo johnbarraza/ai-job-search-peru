@@ -21,7 +21,7 @@ describe("Jobdanmark CLI flag validation", () => {
   test("search --limit=-1 is rejected instead of silently dropping the last result", async () => {
     const result = await runCLI(["search", "--limit=-1"]);
     expectValidationError(result, "limit");
-    expect(JSON.parse(result.stderr).error.message).toContain("greater than or equal to 1");
+    expect(JSON.parse(result.stderr).error.message).toContain(">=1");
   });
 
   test("search --page=0 is rejected on the 1-indexed portal", async () => {
@@ -32,19 +32,19 @@ describe("Jobdanmark CLI flag validation", () => {
   test("search --category=-1 is rejected", async () => {
     const result = await runCLI(["search", "--category=-1"]);
     expectValidationError(result, "category");
-    expect(JSON.parse(result.stderr).error.message).toContain("greater than or equal to 1");
+    expect(JSON.parse(result.stderr).error.message).toContain(">=1");
   });
 
   test("search --jobtitle-id=1.5 is rejected as non-integer", async () => {
     const result = await runCLI(["search", "--jobtitle-id=1.5"]);
     expectValidationError(result, "jobtitle-id");
-    expect(JSON.parse(result.stderr).error.message).toContain("Expected integer");
+    expect(JSON.parse(result.stderr).error.message).toContain("expected int");
   });
 
   test("search --limit=1.5 is rejected as non-integer", async () => {
     const result = await runCLI(["search", "--limit=1.5"]);
     expectValidationError(result, "limit");
-    expect(JSON.parse(result.stderr).error.message).toContain("Expected integer");
+    expect(JSON.parse(result.stderr).error.message).toContain("expected int");
   });
 
   test("categories --limit=-1 is rejected", async () => {
