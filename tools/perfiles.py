@@ -153,6 +153,19 @@ def ensure_hook(root: Path) -> str:
     return "hook pre-push instalado (bloquea ramas perfil/* y datos de perfiles en otros commits)"
 
 
+STARTER_QUERIES = {
+    "jobage": 14,
+    "excluir_titulo": ["senior", "jefe", "gerente"],
+    "consultas": [
+        {"portal": "computrabajo", "q": "practicante", "l": "Lima"},
+        {"portal": "bumeran", "q": "practicante", "l": "Lima"},
+        {"portal": "linkedin", "q": "practicante", "l": "Lima, Peru"},
+        {"portal": "talento-peru", "q": "", "l": "Lima", "tipo": "practicas"},
+        {"portal": "practicas-pe", "q": "economia", "l": "Lima"},
+    ],
+}
+
+
 def is_configured(path: Path) -> bool:
     claude = path / "CLAUDE.md"
     return claude.is_file() and PLACEHOLDER not in claude.read_text(encoding="utf-8", errors="replace")
@@ -187,6 +200,11 @@ def cmd_crear(root: Path, args) -> dict:
     if args.jev:
         git("submodule", "update", "--init", "vendor/jev-browse", cwd=path)
         notes.append("submódulo vendor/jev-browse inicializado")
+    queries = path / "reports" / "busqueda" / "consultas.json"
+    if not queries.exists():  # a starting point for searching without a model (docs/PIPELINE.md)
+        queries.parent.mkdir(parents=True, exist_ok=True)
+        queries.write_text(json.dumps(STARTER_QUERIES, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        notes.append("consultas de ejemplo en reports/busqueda/consultas.json: cámbialas por tus carreras y puestos")
     return {
         "perfil": name,
         "ruta": str(path),
@@ -194,7 +212,9 @@ def cmd_crear(root: Path, args) -> dict:
         "creado": created,
         "configurado": is_configured(path),
         "notas": notes,
-        "siguiente": f'cd "{path}" y abre Claude Code ahí; luego /setup (o /setup --user {name} desde la raíz)',
+        "siguiente": (f'cd "{path}"; con IA, abre Claude Code ahí y corre /setup. Sin IA, edita CLAUDE.md y '
+                      'reports/busqueda/consultas.json y corre: python tools/pe_pipeline.py buscar --detalle --registrar '
+                      '(pasos en docs/INSTALAR.md)'),
     }
 
 

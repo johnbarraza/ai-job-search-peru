@@ -619,6 +619,14 @@ class NewFromLastSearch(unittest.TestCase):
         self.assertNotIn("javascript:", html)
         self.assertIn('<option value="asistente de seleccion">', html)
 
+    def test_without_rank_the_new_postings_show_unfolded_with_their_salary(self):
+        data = pr.collect({"seen": {}}, [], Path(tempfile.mkdtemp()))
+        data["nuevas"] = {"generated": "2026-10-31", "nuevas": [
+            {"id": "1", "portal": "computrabajo", "title": "Practicante", "salary": "S/. 1.230,00 (Mensual)"}]}
+        page = pr.render(data, date(2026, 10, 31), None)
+        self.assertIn('id="sec-nuevas" open>', page, "no model ran /rank: this table is the whole page")
+        self.assertIn("S/. 1.230,00 (Mensual)", page)
+
     def test_no_report_no_section(self):
         self.assertEqual(pr.nuevas_html(None, {}), "")
         self.assertEqual(pr.nuevas_html({"nuevas": []}, {}), "")

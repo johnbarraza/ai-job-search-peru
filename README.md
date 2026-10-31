@@ -8,6 +8,12 @@ Herramientas para buscar ofertas, revisar requisitos, preparar un CV por puesto 
 
 La búsqueda y la página de revisión funcionan **sin LLM**. Claude Code, Codex y otros agentes pueden usar los mismos JSON y seguir las instrucciones canónicas de [`.claude/`](.claude/) y el perfil de cada persona. Las instrucciones para agentes están en [AGENTS.md](AGENTS.md).
 
+<p align="center">
+  <img src="assets/peru/flujo.svg" alt="Flujo en seis pasos. Sin IA: instalar.sh prepara el entorno y los portales, buscar trae las ofertas nuevas, actualizar arma la página de revisión y estado muestra los cierres próximos. Con IA, opcional: /rank evalúa el encaje con el perfil y /apply adapta el CV y la carta." width="100%">
+</p>
+
+Los cuatro primeros pasos funcionan sin Claude Code, Codex ni ningún otro modelo: la página muestra las ofertas nuevas con fecha, cierre, lugar, modalidad y sueldo cuando el aviso lo publica, y el encaje se decide leyéndolas. `/rank` y `/apply` agregan la evaluación contra el perfil y el CV adaptado; necesitan un agente.
+
 ## Empezar
 
 Requiere Python 3.10+; algunos portales también usan [Bun](https://bun.sh). Si es tu primera vez con Python o con entornos virtuales, sigue [docs/INSTALAR.md](docs/INSTALAR.md) (o corre `bash instalar.sh`): programas necesarios, entorno virtual, uso diario, actualizaciones e instrucciones para un asistente de IA. Las dependencias de Python, con versión fija, están en `requirements.txt`. Para la configuración completa del perfil, lee [SETUP.md](SETUP.md).

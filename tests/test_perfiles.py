@@ -57,6 +57,9 @@ class Perfiles(unittest.TestCase):
         self.assertTrue((path / "CLAUDE.md").is_file())
         self.assertFalse(out["configurado"])
         self.assertEqual(git("branch", "--show-current", cwd=path).stdout.strip(), "perfil/maria-jose")
+        queries = json.loads((path / "reports/busqueda/consultas.json").read_text(encoding="utf-8"))
+        self.assertTrue(queries["consultas"], "a starting point for searching without a model")
+        self.assertIn("pe_pipeline.py buscar", out["siguiente"])
 
     def test_crear_is_idempotent(self):
         self.run_tool("crear", "ana")

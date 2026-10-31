@@ -1315,7 +1315,7 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
             f'<tr data-text="{esc(text)}" data-portal="{esc(p.get("portal") or "?")}" data-query="{esc(p.get("query") or "")}">'
             f'<td class="num">{esc(p.get("date") or "—")}</td><td class="num">{esc(p.get("deadline") or "—")}</td><td><b>{title}</b>'
             f'<br><span class="dim">{esc(p.get("company") or "")}</span>{source_note}</td>'
-            f'<td>{esc(p.get("location") or "—")}</td><td>{esc(kind or "—")}</td>'
+            f'<td>{esc(p.get("location") or "—")}</td><td>{esc(kind or "—")}</td><td>{esc(p.get("salary") or "—")}</td>'
             f'<td>{esc((p.get("portal") or "?").replace("-", " "))}</td><td class="dim">{esc(p.get("query") or "")}</td></tr>')
     portal_opts = "".join(f'<option value="{esc(x)}">{esc(x.replace("-", " "))}</option>' for x in portals)
     query_opts = "".join(f'<option value="{esc(x)}">{esc(x)}</option>' for x in queries)
@@ -1329,7 +1329,7 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
             f'<select id="np" aria-label="Portal"><option value="">Todo portal</option>{portal_opts}</select>'
             f'<select id="nc" aria-label="Consulta"><option value="">Toda consulta</option>{query_opts}</select>'
             f'<span class="progress">Mostrando <b id="ncount">{len(rows)}</b> de {len(rows)}</span></div>'
-            '<div class="wrap"><table><thead><tr><th>Publicada</th><th>Cierra</th><th>Oferta</th><th>Lugar</th><th>Modalidad y nivel</th>'
+            '<div class="wrap"><table><thead><tr><th>Publicada</th><th>Cierra</th><th>Oferta</th><th>Lugar</th><th>Modalidad y nivel</th><th>Sueldo</th>'
             f'<th>Portal</th><th>Consulta</th></tr></thead><tbody id="nrows">{"".join(body)}</tbody></table></div></details>')
 
 
@@ -1678,7 +1678,9 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
                        f"{clean} de {len(clis)} con búsqueda automática sin errores" if clis else "cobertura"))
     more = "".join(f'<a href="#{sid}" data-open="{sid}"><b>{n}</b><strong>{esc(lbl)}</strong><span>{esc(note)}</span></a>'
                    for sid, n, lbl, note in more_cards)
-    nuevas = nuevas.replace('<details class="nuevas">', '<details class="sec nuevas" id="sec-nuevas">', 1)
+    # Without /rank (no model) the new postings are all there is: show them unfolded.
+    nuevas = nuevas.replace('<details class="nuevas">', '<details class="sec nuevas" id="sec-nuevas"'
+                            + (" open" if not data["ranked"] else "") + ">", 1)
     coverage = coverage.replace('<details class="cov">', '<details class="sec cov" id="sec-portales">', 1)
 
     return f"""<header class="top"><div class="wrap-x">

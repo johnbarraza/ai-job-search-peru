@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 250" width="1200" height="250" role="img" aria-labelledby="t d">
+  <title id="t">Flujo de trabajo</title>
+  <desc id="d">Seis pasos en orden. Sin IA: instalar.sh prepara el entorno y los portales, buscar trae las ofertas nuevas, actualizar arma la página de revisión y estado muestra los cierres próximos. Con IA, opcional: /rank evalúa el encaje con el perfil y /apply adapta el CV y la carta.</desc>
+  <style>
+    .card{fill:#ffffff;stroke:#d0d7de}
+    .track{stroke:#d0d7de} .done{stroke:#0550ae}
+    .hole{fill:#ffffff;stroke:#d0d7de} .core{fill:#ffffff}
+    .free .dot{fill:#0550ae} .free .ring{stroke:#0550ae} .free .cmd{fill:#0550ae} .free .chip{fill:#ddf4ff} .free .chip-t{fill:#0550ae}
+    .ai .dot{fill:#D91023} .ai .ring{stroke:#D91023} .ai .cmd{fill:#a40e1c} .ai .chip{fill:#fff0f1} .ai .chip-t{fill:#a40e1c}
+    .cmd{font:700 21px ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace} .sub{fill:#59636e;font:500 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .chip-t{font:600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif}
+    .sheet{fill:#ffffff;stroke:#59636e} .sheet-l{stroke:#59636e}
+    @media (prefers-color-scheme:dark){
+      .card{fill:#161b22;stroke:#30363d} .track{stroke:#30363d} .done{stroke:#79c0ff}
+      .hole{fill:#161b22;stroke:#30363d} .core{fill:#161b22}
+      .free .dot{fill:#79c0ff} .free .ring{stroke:#79c0ff} .free .cmd{fill:#79c0ff} .free .chip{fill:#0c2d4f} .free .chip-t{fill:#79c0ff}
+      .ai .dot{fill:#ff6b7a} .ai .ring{stroke:#ff6b7a} .ai .cmd{fill:#ffb3bb} .ai .chip{fill:#3d1418} .ai .chip-t{fill:#ffb3bb}
+      .sub{fill:#9198a1} .sheet{fill:#e6edf3;stroke:#9198a1} .sheet-l{stroke:#59636e}
+    }
+    .pulse{transform-box:fill-box;transform-origin:center}
+    .courier{animation:go 12s linear infinite}
+    .done{animation:done 12s linear infinite}
+    @keyframes go{0%{transform:translateX(0);opacity:0}3%{opacity:1}84.0%{transform:translateX(980px);opacity:1}92%,100%{transform:translateX(980px);opacity:0}}
+    @keyframes done{0%{stroke-dashoffset:1}84.0%,93%{stroke-dashoffset:0;opacity:1}98%,100%{stroke-dashoffset:0;opacity:0}}
+    .s0 .fill{animation:f0 12s linear infinite}.s0 .pulse{animation:p0 12s ease-out infinite}@keyframes f0{0%,0.00%{opacity:0}0.00%,93%{opacity:1}98%,100%{opacity:0}}@keyframes p0{0%,0.00%{transform:scale(.6);opacity:0}0.00%{opacity:.8}8.40%,100%{transform:scale(2.2);opacity:0}}.s1 .fill{animation:f1 12s linear infinite}.s1 .pulse{animation:p1 12s ease-out infinite}@keyframes f1{0%,16.20%{opacity:0}16.80%,93%{opacity:1}98%,100%{opacity:0}}@keyframes p1{0%,16.20%{transform:scale(.6);opacity:0}16.80%{opacity:.8}25.20%,100%{transform:scale(2.2);opacity:0}}.s2 .fill{animation:f2 12s linear infinite}.s2 .pulse{animation:p2 12s ease-out infinite}@keyframes f2{0%,33.00%{opacity:0}33.60%,93%{opacity:1}98%,100%{opacity:0}}@keyframes p2{0%,33.00%{transform:scale(.6);opacity:0}33.60%{opacity:.8}42.00%,100%{transform:scale(2.2);opacity:0}}.s3 .fill{animation:f3 12s linear infinite}.s3 .pulse{animation:p3 12s ease-out infinite}@keyframes f3{0%,49.80%{opacity:0}50.40%,93%{opacity:1}98%,100%{opacity:0}}@keyframes p3{0%,49.80%{transform:scale(.6);opacity:0}50.40%{opacity:.8}58.80%,100%{transform:scale(2.2);opacity:0}}.s4 .fill{animation:f4 12s linear infinite}.s4 .pulse{animation:p4 12s ease-out infinite}@keyframes f4{0%,66.60%{opacity:0}67.20%,93%{opacity:1}98%,100%{opacity:0}}@keyframes p4{0%,66.60%{transform:scale(.6);opacity:0}67.20%{opacity:.8}75.60%,100%{transform:scale(2.2);opacity:0}}.s5 .fill{animation:f5 12s linear infinite}.s5 .pulse{animation:p5 12s ease-out infinite}@keyframes f5{0%,83.40%{opacity:0}84.00%,93%{opacity:1}98%,100%{opacity:0}}@keyframes p5{0%,83.40%{transform:scale(.6);opacity:0}84.00%{opacity:.8}92.40%,100%{transform:scale(2.2);opacity:0}}
+    @media (prefers-reduced-motion:reduce){*{animation:none!important}.fill{opacity:1}.done{stroke-dashoffset:0}.courier{opacity:0}}
+  </style>
+  <rect x="1" y="1" width="1198" height="248" rx="20" class="card"/>
+  <line class="track" x1="110" y1="84" x2="1090" y2="84" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 10"/>
+  <line class="done" x1="110" y1="84" x2="1090" y2="84" pathLength="1" stroke-width="3" stroke-dasharray="1 1"/>
+  <g class="s0 free">
+    <circle class="pulse ring" cx="110" cy="84" r="18" fill="none" stroke-width="2"/>
+    <circle class="hole" cx="110" cy="84" r="18" stroke-width="2"/>
+    <circle class="fill dot" cx="110" cy="84" r="18"/>
+    <circle class="core" cx="110" cy="84" r="5"/>
+    <text class="cmd" x="110" y="138" text-anchor="middle">instalar.sh</text>
+    <text class="sub" x="110" y="164" text-anchor="middle">Entorno y portales</text>
+    <rect class="chip" x="79" y="180" width="62" height="22" rx="11"/>
+    <text class="chip-t" x="110" y="195" text-anchor="middle">sin IA</text>
+  </g>
+  <g class="s1 free">
+    <circle class="pulse ring" cx="306" cy="84" r="18" fill="none" stroke-width="2"/>
+    <circle class="hole" cx="306" cy="84" r="18" stroke-width="2"/>
+    <circle class="fill dot" cx="306" cy="84" r="18"/>
+    <circle class="core" cx="306" cy="84" r="5"/>
+    <text class="cmd" x="306" y="138" text-anchor="middle">buscar</text>
+    <text class="sub" x="306" y="164" text-anchor="middle">Ofertas nuevas</text>
+    <rect class="chip" x="275" y="180" width="62" height="22" rx="11"/>
+    <text class="chip-t" x="306" y="195" text-anchor="middle">sin IA</text>
+  </g>
+  <g class="s2 free">
+    <circle class="pulse ring" cx="502" cy="84" r="18" fill="none" stroke-width="2"/>
+    <circle class="hole" cx="502" cy="84" r="18" stroke-width="2"/>
+    <circle class="fill dot" cx="502" cy="84" r="18"/>
+    <circle class="core" cx="502" cy="84" r="5"/>
+    <text class="cmd" x="502" y="138" text-anchor="middle">actualizar</text>
+    <text class="sub" x="502" y="164" text-anchor="middle">Página de revisión</text>
+    <rect class="chip" x="471" y="180" width="62" height="22" rx="11"/>
+    <text class="chip-t" x="502" y="195" text-anchor="middle">sin IA</text>
+  </g>
+  <g class="s3 free">
+    <circle class="pulse ring" cx="698" cy="84" r="18" fill="none" stroke-width="2"/>
+    <circle class="hole" cx="698" cy="84" r="18" stroke-width="2"/>
+    <circle class="fill dot" cx="698" cy="84" r="18"/>
+    <circle class="core" cx="698" cy="84" r="5"/>
+    <text class="cmd" x="698" y="138" text-anchor="middle">estado</text>
+    <text class="sub" x="698" y="164" text-anchor="middle">Cierres próximos</text>
+    <rect class="chip" x="667" y="180" width="62" height="22" rx="11"/>
+    <text class="chip-t" x="698" y="195" text-anchor="middle">sin IA</text>
+  </g>
+  <g class="s4 ai">
+    <circle class="pulse ring" cx="894" cy="84" r="18" fill="none" stroke-width="2"/>
+    <circle class="hole" cx="894" cy="84" r="18" stroke-width="2"/>
+    <circle class="fill dot" cx="894" cy="84" r="18"/>
+    <circle class="core" cx="894" cy="84" r="5"/>
+    <text class="cmd" x="894" y="138" text-anchor="middle">/rank</text>
+    <text class="sub" x="894" y="164" text-anchor="middle">Encaje con el perfil</text>
+    <rect class="chip" x="862" y="180" width="64" height="22" rx="11"/>
+    <text class="chip-t" x="894" y="195" text-anchor="middle">con IA</text>
+  </g>
+  <g class="s5 ai">
+    <circle class="pulse ring" cx="1090" cy="84" r="18" fill="none" stroke-width="2"/>
+    <circle class="hole" cx="1090" cy="84" r="18" stroke-width="2"/>
+    <circle class="fill dot" cx="1090" cy="84" r="18"/>
+    <circle class="core" cx="1090" cy="84" r="5"/>
+    <text class="cmd" x="1090" y="138" text-anchor="middle">/apply</text>
+    <text class="sub" x="1090" y="164" text-anchor="middle">CV y carta</text>
+    <rect class="chip" x="1058" y="180" width="64" height="22" rx="11"/>
+    <text class="chip-t" x="1090" y="195" text-anchor="middle">con IA</text>
+  </g>
+  <g class="courier">
+    <rect class="sheet" x="97" y="22" width="26" height="32" rx="3" stroke-width="1.5"/>
+    <path class="sheet-l" d="M103 32h14M103 38h14M103 44h9" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+</svg>
