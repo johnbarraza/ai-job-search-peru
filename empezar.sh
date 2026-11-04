@@ -45,110 +45,162 @@ if [ -z "$nombre" ]; then nombre="mi-perfil"; raw="Mi perfil"; echo "  Uso «mi-
 PERFIL="$ROOT/perfiles/$nombre"
 if [ -d "$PERFIL" ]; then echo "  ya existe: perfiles/$nombre"; else run tools/perfiles.py crear "$nombre"; fi
 
-paso "tus datos y tu CV (con un agente de IA, opcional)"
-if grep -q "\[YOUR_NAME\]" "$PERFIL/CLAUDE.md" 2>/dev/null; then
-  if command -v claude >/dev/null 2>&1 && [ -t 0 ]; then
-    if [ "$(ask '  ¿Abrir Claude Code ahora para armar tu perfil con /setup? [S/n] ')" != "n" ]; then
+paso "con IA o sin IA"
+default_ia=lexico default_label="sin IA"
+if command -v claude >/dev/null 2>&1; then default_ia=claude default_label="Claude Code"; fi
+ia_modo=$(elegir "¿Tienes una suscripción de IA para usar con esto?" "$default_ia" "$default_label" \
+  "claude|Sí, Claude Code (recomendado): arma tu perfil, evalúa cada oferta y adapta tu CV" \
+  "codex|Sí, Codex (ChatGPT)" \
+  "agy|Sí, Antigravity (agy)" \
+  "lexico|No: modo sin IA, con preguntas (y tu CV si lo tienes) y puntaje por palabras")
+ia_modo=${ia_modo%%,*}
+[ "$ia_modo" = "<" ] && ia_modo=$default_ia
+if [ "$ia_modo" = "claude" ] && ! command -v claude >/dev/null 2>&1; then
+  echo "  No encuentro Claude Code en esta PC (cómo instalarlo: docs/AGENTES_IA.md). Sigo en modo sin IA."
+  ia_modo=lexico
+fi
+case "$ia_modo" in
+  claude)
+    if grep -q "\[YOUR_NAME\]" "$PERFIL/CLAUDE.md" 2>/dev/null && [ -t 0 ]; then
       case "$(uname -s)" in
         MINGW*|MSYS*|CYGWIN*)
           # Git Bash's window (mintty) is not a full Windows console and interactive programs can
           # misbehave there: Claude Code gets its own PowerShell window, and this one waits.
           ps_cmd="Start-Process powershell -WorkingDirectory '$(cygpath -w "$ROOT")' -ArgumentList '-NoExit -Command claude ''/setup --user $nombre'''"
           if powershell.exe -NoProfile -Command "$ps_cmd"; then
-            echo "  Se abrió Claude Code en otra ventana. Responde sus preguntas ahí."
+            echo "  Se abrió Claude Code en otra ventana con /setup: responde ahí (tu CV, estudios, experiencia...)."
             ask "  Cuando termine /setup, vuelve a esta ventana y presiona Enter para seguir... " >/dev/null
           else
             echo "  No pude abrir otra ventana. Abre PowerShell en esta carpeta, escribe  claude  y luego  /setup --user $nombre"
             ask "  Cuando termines, presiona Enter aquí para seguir... " >/dev/null
           fi ;;
         *)
-          echo "  Se abre Claude Code. Responde sus preguntas; al terminar escribe /exit y esto sigue."
+          echo "  Se abre Claude Code con /setup. Responde sus preguntas; al terminar escribe /exit y esto sigue."
           claude "/setup --user $nombre" || echo "  Claude Code no abrió bien: ábrelo tú en esta carpeta con  claude  y escribe  /setup --user $nombre" ;;
       esac
-    fi
-  elif command -v agy >/dev/null 2>&1; then
-    echo "  Después abre agy en perfiles/$nombre y pídele: «sigue .claude/commands/setup.md para armar mi perfil»."
-  else
-    echo "  Sin agente: completa perfiles/$nombre/CLAUDE.md a mano (docs/INSTALAR.md, paso 7) o instala uno (docs/AGENTES_IA.md)."
-    echo "  La búsqueda funciona igual sin eso."
-  fi
-else
-  echo "  ya está"
-fi
+    else
+      echo "  Tu perfil ya tiene datos (o esta ventana no es interactiva): /setup no hace falta ahora."
+    fi ;;
+  codex|agy)
+    echo "  Abre $ia_modo en la carpeta del proyecto y pégale el prompt de la «Forma 3» del README para armar tu perfil."
+    echo "  Aquí sigo con las preguntas de búsqueda." ;;
+  *)
+    echo "  Modo sin IA: te hago unas preguntas para tu ficha. Si tienes tu CV, lo leo y se completan solas;"
+    echo "  si no, igual funciona solo con las preguntas. Las ofertas se puntúan comparándolas con tu ficha." ;;
+esac
 
 paso "qué buscar"
 cd "$PERFIL"
-if ! run tools/pe_pipeline.py consultas --es-ejemplo; then
-  echo "  ya está: reports/busqueda/consultas.json"
+rc=0; run tools/pe_pipeline.py consultas --es-ejemplo || rc=$?
+if [ "$rc" = 3 ]; then
+  echo "  ya está: reports/busqueda/consultas.json (para cambiarla: python tools/pe_pipeline.py consultas --help)"
 else
+  [ "$rc" = 0 ] || echo "  Aviso: no pude revisar tus búsquedas (detalle arriba); igual te pregunto."
   echo "  Responde con el número; en las que dicen «varios», separa con comas (1,3)."
-  echo "  Enter salta la pregunta; < vuelve a la anterior; al final puedes cambiar cualquier respuesta."
+  echo "  Enter deja lo que está (o salta la pregunta); < vuelve a la anterior; al final puedes cambiar cualquier respuesta."
   echo "  Solo se busca lo que elijas: si eliges solo sector privado, no se busca en el público."
   sector="" etapa="" ciclo="" merito="" area="" modo="" lugar="" city="Lima" modo_busqueda="lista" kw="" cv_file=""
+  universidad="" experiencia="" ingles="" herramientas="" certificaciones=""
   pretty() { printf '%s' "${1:-$2}" | sed 's/,/, /g'; }
+  lexico() { [ "$ia_modo" = "lexico" ]; }
+  # Read a CV and fill only what is still empty: an answer given wins.
+  usar_cv() {
+    local file found
+    file=$(printf '%s' "$1" | tr -d "\"'" | sed 's/^ *//; s/ *$//')
+    if [ -f "$file" ] && found=$(run tools/pe_pipeline.py leer-cv "$(cygpath -w "$file" 2>/dev/null || printf '%s' "$file")"); then
+      cv_area="" cv_etapa="" cv_ciclo="" cv_merito="" cv_universidad="" cv_ingles="" cv_herramientas="" cv_certificaciones=""
+      eval "$found"  # cv_* assignments from a fixed vocabulary, shell-quoted by pe_lexico.py
+      cv_file=$file
+      [ -n "$area" ] || area=$cv_area
+      [ -n "$etapa" ] || etapa=$cv_etapa
+      [ "$etapa" != "estudiante" ] || [ -n "$ciclo" ] || ciclo=$cv_ciclo
+      [ -n "$merito" ] || merito=$cv_merito
+      [ -n "$universidad" ] || universidad=$cv_universidad
+      [ -n "$ingles" ] || ingles=$cv_ingles
+      [ -n "$herramientas" ] || herramientas=$cv_herramientas
+      [ -n "$certificaciones" ] || certificaciones=$cv_certificaciones
+      mkdir -p documents/cv && cp "$file" documents/cv/ 2>/dev/null || true
+      echo "  Leí tu CV (sin IA, por palabras) y lo copié a documents/cv/. Lo que leí aparece como respuesta"
+      echo "  por defecto en cada pregunta: Enter lo deja, o elige otra cosa si lo leí mal."
+      return 0
+    fi
+    echo "  No encontré o no pude leer ese archivo; sigo con las preguntas."
+    return 1
+  }
   # One question by number. Returns 1 when the answer is "<" (go back) and 2 when it does not apply.
   pregunta() {
     local v
     case "$1" in
-      1) v=$(elegir "1. ¿En qué sector quieres trabajar? (varios)" "" "todos" \
+      1) lexico || return 2
+         v=$(ask "  ¿Tienes tu CV? Arrastra el archivo (PDF o Word) a esta ventana y Enter; si no, solo Enter: ")
+         [ "$v" = "<" ] && return 1
+         [ -z "$v" ] || usar_cv "$v" || true ;;
+      2) v=$(elegir "¿En qué sector quieres trabajar? (varios)" "$sector" "$(pretty "$sector" todos)" \
            "privado|Sector privado (empresas, bancos, consultoras...)" \
            "publico|Sector público (SERVIR: ministerios, BCRP, SUNAT, SBS...)" \
            "investigacion|Investigación (research: universidades, centros de estudio)" \
            "otros|Otros (ONG, organismos internacionales)" \
            "privado,publico,investigacion,otros|Todos")
          [ "$v" = "<" ] && return 1; sector=$v ;;
-      2) v=$(elegir "2. ¿Eres estudiante universitario?" "" "omitir" \
+      3) v=$(elegir "¿Eres estudiante universitario?" "$etapa" "$(pretty "$etapa" omitir)" \
            "estudiante|Sí, estudiante: busco prácticas preprofesionales" \
            "egresado|Egresado o bachiller: prácticas profesionales, trainee, analista junior" \
            "profesional|No, ya trabajo: analista, asociado, junior")
          [ "$v" = "<" ] && return 1; etapa=${v%%,*}; [ "$etapa" = "estudiante" ] || ciclo="" ;;
-      3) [ "$etapa" = "estudiante" ] || return 2
-         v=$(elegir "3. ¿En qué ciclo estás?" "" "omitir" \
+      4) [ "$etapa" = "estudiante" ] || return 2
+         v=$(elegir "¿En qué ciclo estás?" "$ciclo" "$(pretty "$ciclo" omitir)" \
            "1-4|1.º a 4.º ciclo" "5-6|5.º o 6.º ciclo" "7-8|7.º u 8.º ciclo" "9+|9.º ciclo o más (último año)")
          [ "$v" = "<" ] && return 1; ciclo=${v%%,*} ;;
-      4) v=$(elegir "4. ¿Tienes mérito académico? (muchas prácticas lo piden)" "" "omitir" \
+      5) v=$(elegir "¿Tienes mérito académico? (muchas prácticas lo piden)" "$merito" "$(pretty "$merito" omitir)" \
            "decimo|Décimo superior" "quinto|Quinto superior" "tercio|Tercio superior" "medio|Medio superior" "ninguno|Ninguno")
          [ "$v" = "<" ] && return 1; merito=${v%%,*} ;;
-      5) v=$(elegir "5. ¿Cómo armamos tus búsquedas? (sin IA)" "lista" "elegir áreas" \
-           "lista|Eligiendo áreas de una lista" \
-           "palabras|Escribiendo palabras clave (ej. practicante finanzas, riesgos)" \
-           "cv|Desde tu CV (PDF, Word o texto): lee tus carreras, tu etapa y tu mérito")
+      6) v=$(elegir "¿Cómo armamos tus búsquedas?" "lista" "por área" \
+           "lista|Por área (de tu carrera)" \
+           "palabras|Con palabras clave tuyas (ej. practicante finanzas, riesgos)" \
+           "cv|Desde tu CV (PDF, Word o texto)")
          [ "$v" = "<" ] && return 1
-         modo_busqueda=${v%%,*}; kw="" cv_file=""
+         modo_busqueda=${v%%,*}
          if [ "$modo_busqueda" = "palabras" ]; then
-           kw=$(ask "  Palabras clave, separadas por comas: "); area=""
+           kw=$(ask "  Palabras clave, separadas por comas: ")
            [ -n "$kw" ] || modo_busqueda="lista"
          elif [ "$modo_busqueda" = "cv" ]; then
-           cv_file=$(ask "  Arrastra tu CV a esta ventana (o escribe su ruta) y presiona Enter: ")
-           cv_file=$(printf '%s' "$cv_file" | tr -d "\"'" | sed 's/^ *//; s/ *$//')
-           if [ -f "$cv_file" ] && found=$(run tools/pe_pipeline.py leer-cv "$(cygpath -w "$cv_file" 2>/dev/null || printf '%s' "$cv_file")"); then
-             cv_area="" cv_etapa="" cv_ciclo="" cv_merito=""
-             eval "$found"  # cv_* assignments from a fixed vocabulary, shell-quoted by pe_pipeline.py
-             area=$cv_area
-             # The CV fills only what was skipped: an answer given above wins.
-             [ -n "$etapa" ] || etapa=$cv_etapa
-             [ "$etapa" != "estudiante" ] || [ -n "$ciclo" ] || ciclo=$cv_ciclo
-             [ -n "$merito" ] || merito=$cv_merito
-             mkdir -p documents/cv && cp "$cv_file" documents/cv/ 2>/dev/null || true
-             echo "  Leí tu CV (sin IA): áreas $(pretty "$area" 'no claras'); etapa $(pretty "$etapa" '—'); mérito $(pretty "$merito" '—')."
-             echo "  Lo copié a documents/cv/ de tu perfil. Revisa el resumen de abajo: puedes corregir cualquier cosa."
-           else
-             echo "  No encontré o no pude leer ese archivo. Elige las áreas de la lista."
-             modo_busqueda="lista"
-           fi
+           usar_cv "$(ask "  Arrastra tu CV a esta ventana (o escribe su ruta) y presiona Enter: ")" || true
+           modo_busqueda="lista"
          fi
          if [ "$modo_busqueda" = "lista" ]; then
-           v=$(elegir "   ¿De qué área? (varios)" "" "todas" \
+           kw=""
+           v=$(elegir "   ¿De qué área? (varios)" "$area" "$(pretty "$area" todas)" \
              "economia|Economía" "finanzas|Finanzas" "contabilidad|Contabilidad y auditoría" \
              "administracion|Administración y negocios" "industrial|Ingeniería industrial" "datos|Datos y tecnología" \
              "marketing|Marketing y ventas" "derecho|Derecho" "rrhh|Recursos humanos y psicología" \
              "ingenieria|Otras ingenierías (civil, minas, sistemas)" "comunicaciones|Comunicaciones")
            [ "$v" = "<" ] && return 1; area=$v
          fi ;;
-      6) v=$(elegir "6. ¿Qué modalidad? (varios)" "" "cualquiera" \
+      7) lexico || return 2
+         v=$(ask "  ¿Universidad? (Enter = $(pretty "$universidad" omitir)): ")
+         [ "$v" = "<" ] && return 1; [ -z "$v" ] || universidad=$v ;;
+      8) lexico || return 2
+         v=$(elegir "¿Cuánta experiencia laboral tienes?" "$experiencia" "$(pretty "$experiencia" omitir)" \
+           "ninguna|Ninguna" "practicas|Prácticas previas" "menos1|Menos de 1 año" \
+           "1-3|1 a 3 años" "3-5|3 a 5 años" "5+|Más de 5 años")
+         [ "$v" = "<" ] && return 1; experiencia=${v%%,*} ;;
+      9) lexico || return 2
+         v=$(elegir "¿Tu nivel de inglés?" "$ingles" "$(pretty "$ingles" omitir)" \
+           "basico|Básico" "intermedio|Intermedio" "avanzado|Avanzado" "nativo|Nativo o bilingüe")
+         [ "$v" = "<" ] && return 1; ingles=${v%%,*} ;;
+      10) lexico || return 2
+         v=$(elegir "¿Qué herramientas manejas? (varios; las que más piden)" "$herramientas" "$(pretty "$herramientas" omitir)" \
+           "excel|Excel" "powerbi|Power BI" "tableau|Tableau" "sql|SQL" "python|Python" "r|R" "stata|Stata" \
+           "eviews|EViews" "bloomberg|Bloomberg" "spss|SPSS" "sap|SAP" "ia|Herramientas de IA (ChatGPT, Copilot...)")
+         [ "$v" = "<" ] && return 1; herramientas=$v ;;
+      11) lexico || return 2
+         v=$(elegir "¿Certificaciones? (varios)" "$certificaciones" "$(pretty "$certificaciones" ninguna)" \
+           "cfa1|CFA nivel I" "cfa2|CFA nivel II" "cfa3|CFA nivel III" "frm|FRM" "pmp|PMP" "bmc|Bloomberg Market Concepts")
+         [ "$v" = "<" ] && return 1; certificaciones=$v ;;
+      12) v=$(elegir "¿Qué modalidad? (varios)" "$modo" "$(pretty "$modo" cualquiera)" \
            "remoto|Remoto" "presencial|Presencial" "hibrido|Híbrido" "cualquiera|Cualquiera")
          [ "$v" = "<" ] && return 1; modo=$v ;;
-      7) v=$(elegir "7. ¿Dónde?" "" "Lima" \
+      13) v=$(elegir "¿Dónde?" "$lugar" "$(pretty "$lugar" Lima)" \
            "lima|Lima, Perú" "peru|Otra ciudad del Perú" \
            "afuera-remoto|Perú y también fuera, solo remoto" "afuera|Perú y también fuera, dispuesto a mudarme o viajar")
          [ "$v" = "<" ] && return 1; lugar=${v%%,*}; city="Lima"
@@ -157,7 +209,7 @@ else
     return 0
   }
   i=1 dir=1
-  while [ "$i" -le 7 ]; do
+  while [ "$i" -le 13 ]; do
     rc=0; pregunta "$i" || rc=$?
     case "$rc" in
       0) i=$((i + 1)); dir=1 ;;
@@ -168,36 +220,45 @@ else
   while true; do
     echo
     echo "  Tus respuestas:"
-    echo "    1) Sector: $(pretty "$sector" todos)"
-    echo "    2) Etapa: $(pretty "$etapa" '—')"
-    [ "$etapa" = "estudiante" ] && echo "    3) Ciclo: $(pretty "$ciclo" '—')"
-    echo "    4) Mérito académico: $(pretty "$merito" '—')"
-    case "$modo_busqueda" in
-      palabras) echo "    5) Búsqueda: palabras clave: $kw" ;;
-      cv) echo "    5) Búsqueda: desde tu CV ($(basename "$cv_file")) · áreas: $(pretty "$area" 'no claras: busca en general')" ;;
-      *) echo "    5) Búsqueda: áreas: $(pretty "$area" todas)" ;;
-    esac
-    echo "    6) Modalidad: $(pretty "$modo" cualquiera)"
-    echo "    7) Dónde: $(pretty "$lugar" lima)$([ "$lugar" = "peru" ] && printf ' (%s)' "$city")"
+    lexico && echo "     1) CV: $(pretty "$(basename "${cv_file:-}")" 'no usado')"
+    echo "     2) Sector: $(pretty "$sector" todos)"
+    echo "     3) Etapa: $(pretty "$etapa" '—')"
+    [ "$etapa" = "estudiante" ] && echo "     4) Ciclo: $(pretty "$ciclo" '—')"
+    echo "     5) Mérito académico: $(pretty "$merito" '—')"
+    if [ -n "$kw" ]; then echo "     6) Búsqueda: palabras clave: $kw"; else echo "     6) Búsqueda por área: $(pretty "$area" todas)"; fi
+    if lexico; then
+      echo "     7) Universidad: $(pretty "$universidad" '—')"
+      echo "     8) Experiencia: $(pretty "$experiencia" '—')"
+      echo "     9) Inglés: $(pretty "$ingles" '—')"
+      echo "    10) Herramientas: $(pretty "$herramientas" '—')"
+      echo "    11) Certificaciones: $(pretty "$certificaciones" ninguna)"
+    fi
+    echo "    12) Modalidad: $(pretty "$modo" cualquiera)"
+    echo "    13) Dónde: $(pretty "$lugar" lima)$([ "$lugar" = "peru" ] && printf ' (%s)' "$city")"
     change=$(ask "  Enter = está bien · o el número de la que quieres cambiar: ")
     case "$change" in
       ""|s|S|si|sí) break ;;
-      [1-7]) pregunta "$change" || true ;;
-      *) echo "  Escribe un número del 1 al 7, o Enter." ;;
+      [1-9]|1[0-3]) pregunta "$change" || true ;;
+      *) echo "  Escribe un número de la lista, o Enter." ;;
     esac
   done
-  args=(--ciudad "$city" --sector "$sector" --modalidad "$modo" --area "$area")
+  args=(--ciudad "$city" --sector "$sector" --modalidad "$modo" --area "$area" --herramientas "$herramientas"
+        --certificaciones "$certificaciones" --universidad "$universidad")
   [ -n "$kw" ] && args+=(--q "$kw")
   [ -n "$lugar" ] && args+=(--lugar "$lugar")
   [ -n "$etapa" ] && args+=(--etapa "$etapa")
   [ -n "$ciclo" ] && args+=(--ciclo "$ciclo")
   [ -n "$merito" ] && args+=(--merito "$merito")
+  [ -n "$experiencia" ] && args+=(--experiencia "$experiencia")
+  [ -n "$ingles" ] && args+=(--ingles "$ingles")
   run tools/pe_pipeline.py consultas "${args[@]}" \
     || echo "  No pude armar las búsquedas; sigue igual. Luego: python tools/pe_pipeline.py consultas --help"
 fi
 
 paso "primera búsqueda (5 a 15 minutos; puedes dejarla corriendo)"
-run tools/pe_pipeline.py diario --titulo "$raw" || echo "  Algún paso falló; el detalle está arriba y en reports/busqueda/diario.log. Lo que sí terminó quedó guardado."
+primera=(--titulo "$raw")
+[ "$ia_modo" = "lexico" ] && primera+=(--ia lexico)  # sin IA: each new posting gets its word-based score
+run tools/pe_pipeline.py diario "${primera[@]}" || echo "  Algún paso falló; el detalle está arriba y en reports/busqueda/diario.log. Lo que sí terminó quedó guardado."
 page="$PERFIL/reports/revision-ofertas.html"
 if [ -f "$page" ]; then
   echo "  Página: $page"
@@ -210,19 +271,25 @@ fi
 
 paso "búsqueda diaria (opcional)"
 hora=$(ask "  ¿A qué hora buscar sola todos los días? (ej. 8:00 am; Enter = no programar): ")
+evaluar="lexico"
 if [ -n "$hora" ]; then
   ia=()
-  if command -v claude >/dev/null 2>&1 && [ "$(ask '  ¿Que además Claude Code las evalúe (/rank) cada día? [s/N] ')" = "s" ]; then ia=(--ia claude); fi
-  run tools/pe_pipeline.py programar --hora "$hora" ${ia[@]+"${ia[@]}"} --titulo "$raw"
+  case "$ia_modo" in
+    lexico) ia=(--ia lexico); echo "  Cada día también puntuará las nuevas por palabras (sin IA)." ;;
+    claude|agy)
+      if [ "$(ask "  ¿Que además $ia_modo las evalúe (/rank) cada día? [s/N] ")" = "s" ]; then ia=(--ia "$ia_modo"); fi ;;
+  esac
+  run tools/pe_pipeline.py programar --hora "$hora" ${ia[@]+"${ia[@]}"} --titulo "$raw" || echo "  No se pudo programar; inténtalo luego con: python tools/pe_pipeline.py programar --hora \"$hora\""
 else
   echo "  Sin programar. Cuando quieras: cd perfiles/$nombre && python tools/pe_pipeline.py programar --hora \"8:00 am\""
 fi
+case "$ia_modo" in claude|agy) evaluar=$ia_modo ;; esac
 
-cat <<EOF
+cat <<FIN
 
 Listo. Tu espacio es perfiles/$nombre. Para el día a día (desde esa carpeta):
-  python tools/pe_pipeline.py diario             busca y rehace la página
-  python tools/pe_pipeline.py evaluar --ia claude pasa las nuevas por /rank (o con el botón de la página)
+  python tools/pe_pipeline.py diario                busca y rehace la página
+  python tools/pe_pipeline.py evaluar --ia $evaluar  puntúa las nuevas (o con el botón de la página)
 Antes, en cada terminal nueva:  activa el entorno (.venv) como dice docs/INSTALAR.md, paso 5.
-EOF
+FIN
 pausa

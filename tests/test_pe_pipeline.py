@@ -506,7 +506,7 @@ class Consultas(unittest.TestCase):
             cfg = json.loads(path.read_text(encoding="utf-8"))
             self.assertIn({"portal": "linkedin", "q": "analista", "l": "Arequipa, Peru"}, cfg["consultas"])
             self.assertIn("research assistant", [q["q"] for q in cfg["consultas"]])  # every sector by default
-            self.assertEqual(pp.main(["consultas", "--es-ejemplo", "--consultas", str(path)]), 1)
+            self.assertEqual(pp.main(["consultas", "--es-ejemplo", "--consultas", str(path)]), 3)
             pp.main(["consultas", "--q", "otra cosa", "--consultas", str(path)])  # the user's own: kept
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), cfg)
 
@@ -552,14 +552,51 @@ class LeerCv(unittest.TestCase):
     def test_reads_areas_stage_cycle_and_merit_without_a_model(self):
         with tempfile.TemporaryDirectory() as tmp:
             cv = Path(tmp) / "cv.txt"
-            cv.write_text("Estudiante de Economía, 8.º ciclo, Quinto Superior. Practicante de Finanzas Corporativas: "
-                          "valorización de empresas y riesgo de crédito. Python, SQL, Stata y econometría.", encoding="utf-8")
+            cv.write_text("Estudiante de Economía en la Universidad del Pacífico, 8.º ciclo, Quinto Superior. Practicante de "
+                          "Finanzas Corporativas: valorización de empresas y riesgo de crédito. Python, SQL, Stata, Excel "
+                          "y econometría. Inglés avanzado (C1). CFA Level I candidate.", encoding="utf-8")
             found = pp.read_cv(pp.cv_text(cv))
         self.assertEqual(set(found["area"].split(",")), {"economia", "finanzas", "datos"})
         self.assertEqual((found["etapa"], found["ciclo"], found["merito"]), ("estudiante", "7-8", "quinto"))
-        self.assertEqual(pp.read_cv(" bachiller en derecho, abogado "), {"area": "derecho", "etapa": "egresado",
-                                                                          "ciclo": "", "merito": ""})
-        self.assertEqual(pp.read_cv(" nada que ver "), {"area": "", "etapa": "", "ciclo": "", "merito": ""})
+        self.assertEqual((found["universidad"], found["ingles"], found["certificaciones"]),
+                         ("Universidad del Pacífico", "avanzado", "cfa1"))
+        self.assertEqual(set(found["herramientas"].split(",")), {"excel", "python", "sql", "stata"})
+        derecho = pp.read_cv(" bachiller en derecho, abogado ")
+        self.assertEqual((derecho["area"], derecho["etapa"], derecho["ciclo"]), ("derecho", "egresado", ""))
+        self.assertEqual(set(pp.read_cv(" nada que ver ").values()), {""})
+
+
+class RankLexico(unittest.TestCase):
+    FICHA = {"carreras": ["finanzas"], "etapa": "estudiante", "ciclo": "5-6", "merito": "tercio", "ingles": "intermedio",
+             "herramientas": ["excel"], "experiencia": "ninguna", "sectores": ["privado"]}
+
+    def test_scores_by_words_and_flags_unmet_formal_requirements(self):
+        lx = pp.pe_lexico
+        good = lx.score({"title": "Practicante de Finanzas", "level": "práctica preprofesional"}, self.FICHA)
+        self.assertEqual((good["status"], good["rank_method"], good["eligibility_gate"]), ("ranked", "lexico", "PASS"))
+        self.assertGreaterEqual(good["rank_score"], 75)
+        with tempfile.TemporaryDirectory() as tmp:
+            detail = Path(tmp) / "d.json"
+            detail.write_text(json.dumps({"description": "Practicante de riesgos. Requisitos: estudiante desde el 8.º ciclo, "
+                                                         "quinto superior, inglés avanzado, Power BI y Python."}), encoding="utf-8")
+            hard = lx.score({"title": "Practicante de Riesgos", "detail": str(detail)}, self.FICHA)
+        self.assertEqual((hard["eligibility_gate"], hard["language_gate"]), ("FLAG", "FLAG"))
+        self.assertIn("8.º ciclo", hard["eligibility_note"])
+        self.assertIn("quinto superior", hard["eligibility_note"])
+        self.assertTrue(any("Power BI" in g for g in hard["gaps"]))
+        self.assertLess(hard["rank_score"], good["rank_score"])
+
+    def test_rank_command_scores_only_the_waiting_ones(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("sys.stdout", new=io.StringIO()):
+            state, ficha = Path(tmp) / "seen.json", Path(tmp) / "ficha.json"
+            state.write_text(json.dumps({"seen": {"a": {"title": "Practicante de Finanzas", "status": "new"},
+                                                   "b": {"title": "Analista", "status": "ranked", "rank_score": 80}}}),
+                             encoding="utf-8")
+            ficha.write_text(json.dumps(self.FICHA), encoding="utf-8")
+            self.assertEqual(pp.pe_lexico.main(["rank", "--state", str(state), "--ficha", str(ficha)]), 0)
+            seen = json.loads(state.read_text(encoding="utf-8"))["seen"]
+        self.assertEqual(seen["a"]["rank_method"], "lexico")
+        self.assertEqual(seen["b"]["rank_score"], 80)  # /rank's own score is left alone
 
 
 if __name__ == "__main__":

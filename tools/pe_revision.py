@@ -1158,6 +1158,8 @@ details.sec .track{margin-top:12px}
 .pickbar button.ghost{background:transparent;color:var(--ink-2);border-color:var(--line-strong)}
 .pickbar button:disabled{opacity:.45;cursor:default}
 .pickbar .fine{flex-basis:100%;margin:0}
+.pickbar button.close{margin-left:auto;min-width:40px;padding:0;font-size:20px;line-height:1}
+.sc .lx{display:block;font-size:10px;color:var(--dim);margin-top:2px;white-space:nowrap}
 .d-src{font-size:12px;color:var(--dim)}
 .facts{margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .facts>div{padding:12px 16px;background:var(--surface);border-right:1px solid var(--line);min-width:0}.facts>div:last-child{border-right:0}
@@ -1207,7 +1209,9 @@ details.sec .track{margin-top:12px}
 .cov-table{background:transparent;border:0;padding:0;margin:16px 0 8px}.cov-table>summary{font-size:13px;font-weight:600;color:var(--accent)}
 @media (max-width:900px){.facts{grid-template-columns:repeat(2,minmax(0,1fr))}.facts>div{border-bottom:1px solid var(--line)}
 .d-grid{grid-template-columns:minmax(0,1fr)}.detail{padding-left:18px!important}.cbar{grid-template-columns:110px minmax(0,1fr) 52px}.cbar .st{grid-column:2/-1;justify-self:start}}
-footer{color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:16px;padding-bottom:28px}
+footer{color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:16px;padding-bottom:28px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+footer .gh{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);text-decoration:none;font-weight:600}
+footer .gh:hover span{text-decoration:underline}footer .ver{font-variant-numeric:tabular-nums}
 @media (max-width:900px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.step{border-bottom:1px solid var(--line)}
 .step:nth-child(2n){border-right:0}.detail,.d-more{grid-template-columns:minmax(0,1fr)}.detail{padding-left:18px}.side{max-width:none}}
 @media (max-width:760px){.cols{display:none}
@@ -1328,6 +1332,13 @@ JS = """
       copy('python tools/pe_pipeline.py descartar '+keysOf(drops).map(function(k){return '"'+k+'"';}).join(' '),this);
     });
     document.getElementById('dr-show').addEventListener('click',function(){showDrop=!showDrop;refreshBar();apply();});
+    document.getElementById('pk-close').addEventListener('click',function(){bar.hidden=true;});
+    document.getElementById('pk-clear').addEventListener('click',function(){
+      if(!window.confirm('¿Quitar todas las marcas de «Hacer CV» y «Descartar»?'))return;
+      picks={};drops={};put('pe_revision_pick',picks);put('pe_revision_drop',drops);
+      document.querySelectorAll('input.pick,input.drop').forEach(function(cb){cb.checked=false;cb.closest('.card').classList.remove('is-pick','is-drop');});
+      showDrop=false;refreshBar();apply();
+    });
   }
   refreshBar();
   document.addEventListener('click',function(e){
@@ -1540,6 +1551,8 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
             '<div class="evalbar">'
             '<button type="button" data-copy="python tools/pe_pipeline.py evaluar --ia claude">Copiar comando para evaluarlas (Claude Code)</button>'
             '<button type="button" class="ghost" data-copy="python tools/pe_pipeline.py evaluar --ia agy">Con Antigravity (agy)</button>'
+            '<button type="button" class="ghost" data-copy="python tools/pe_pipeline.py evaluar --ia lexico" '
+            'title="Sin suscripción de IA: compara cada oferta con tu ficha por palabras">Sin IA (por palabras)</button>'
             '<button type="button" class="ghost" data-copy="Corre /rank sobre las ofertas nuevas sin evaluar de este perfil y al terminar '
             'python tools/pe_pipeline.py actualizar. No postules ni envíes nada.">Copiar pedido para el agente</button>'
             '<p class="fine">El comando se pega en la terminal del perfil: corre <code>/rank</code> sin supervisión (puede tardar '
@@ -1659,8 +1672,12 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
         f'data-nivel="{esc(level_txt)}" data-rubros="{esc(rubros)}" data-url="{esc(r.get("url") or "")}" '
         f'data-excl="{"1" if r.get("abroad_excluded") else ""}" {sort_attrs}>'
         f'<details class="rowd"><summary class="row">'
-        f'<span class="sc" title="Encaje: puntaje de /rank sobre 100 · {esc(r.get("rank_verdict"))}"><b>{esc(score if score is not None else "—")}</b>'
-        f'<span class="bar"><i style="width:{esc(pct)}%"></i></span></span>'
+        + (f'<span class="sc" title="Encaje por palabras, sin IA (pe_lexico.py) · {esc(r.get("rank_verdict"))}: revisa el aviso">'
+           f'<b>{esc(score if score is not None else "—")}</b><span class="bar"><i style="width:{esc(pct)}%"></i></span>'
+           '<small class="lx">sin IA</small></span>'
+           if r.get("rank_method") == "lexico" else
+           f'<span class="sc" title="Encaje: puntaje de /rank sobre 100 · {esc(r.get("rank_verdict"))}"><b>{esc(score if score is not None else "—")}</b>'
+           f'<span class="bar"><i style="width:{esc(pct)}%"></i></span></span>') +
         f'<span class="who">{logo_html(r, classes)}<span class="tt"><span class="t">{esc(r.get("title"))}</span>'
         f'<span class="co">{esc(r.get("company"))}{" · " + esc(level_txt) if level_txt else ""}</span>'
         f'<span class="co2"><span class="grp">{esc(group)}</span>{pay_txt}</span></span></span>'
@@ -1676,6 +1693,26 @@ ICON_CHECK = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
               '<path d="M3 8.5l3 3 7-7"/></svg>')
 ICON_ALERT = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">'
               '<path d="M8 3v6M8 12.5v.5"/></svg>')
+REPO_URL = "https://github.com/johnbarraza/ai-job-search-peru"
+ICON_GITHUB = ('<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 '
+               '3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23'
+               '-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78'
+               '-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 '
+               '1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29'
+               '.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>')
+
+
+def installed_version() -> str:
+    """The repo version on this PC: the release tag and how many commits after it (git describe)."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-C", str(ROOT), "describe", "--tags", "--always"], capture_output=True,
+                             text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    return out or "desconocida"
+
+
 ICON_BOOKMARK = ('<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" '
                  'stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h8v11l-4-3-4 3z"/></svg>')
 ICON_TRASH = ('<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" '
@@ -1997,6 +2034,8 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <span><b id="pk-n">0</b> para CV</span><button type="button" id="pk-copy">Copiar pedido para el agente</button>
 <span><b id="dr-n">0</b> descartadas</span><button type="button" id="dr-copy">Copiar comando para guardarlas</button>
 <button type="button" id="dr-show" class="ghost">Ver descartadas</button>
+<button type="button" id="pk-clear" class="ghost" title="Quita todas las marcas de «Hacer CV» y «Descartar»">Vaciar</button>
+<button type="button" id="pk-close" class="ghost close" title="Ocultar esta barra (vuelve al marcar otra)" aria-label="Cerrar">×</button>
 <span class="fine">El pedido se pega en Claude Code, agy o Codex abierto en tu perfil. El comando se pega en la terminal del perfil y saca esas ofertas de la lista para siempre.</span>
 </div>
 </div>
@@ -2019,7 +2058,9 @@ el vencimiento del portal no es una fecha de cierre (<code>10-peru-market.md</co
 Reputación: cada calificación con su n, área y fecha; con menos de {SMALL_N} opiniones es referencial y una certificación pagada no es independiente (sección 11).
 "Guardar", "Hacer CV" y "Descartar" se guardan solo en este navegador.</p>
 </main>
-<footer class="wrap-x">Un solo archivo, sin conexión: se abre con doble clic o en el teléfono. Generado por <code>tools/pe_revision.py</code> · {esc(today.isoformat())}</footer>
+<footer class="wrap-x"><span>Un solo archivo, sin conexión: se abre con doble clic o en el teléfono. Generado por <code>tools/pe_revision.py</code> · {esc(today.strftime("%d/%m/%Y"))}</span>
+<a class="gh" href="{REPO_URL}" target="_blank" rel="noopener noreferrer" title="Código, novedades y cómo actualizar">{ICON_GITHUB}<span>johnbarraza/ai-job-search-peru</span></a>
+<span class="ver" title="Versión instalada en esta PC (git describe). Para actualizar: git pull y bash instalar_basico.sh">versión {esc(installed_version())}</span></footer>
 <script>{JS}{CV_JS}{NUEVAS_JS}</script>
 """
 

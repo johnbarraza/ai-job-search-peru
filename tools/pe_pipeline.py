@@ -77,6 +77,7 @@ def _load(name: str):
 pe_frescura = _load("pe_frescura")
 pe_revision = _load("pe_revision")
 job_key = _load("job_key")
+pe_lexico = _load("pe_lexico")
 
 STATE = Path("job_scraper/seen_jobs.json")
 PROFILE = Path("CLAUDE.md")
@@ -112,6 +113,8 @@ RANK_PROMPT = ("Ejecuta el flujo /rank definido en .claude/commands/rank.md sobr
 IA = {
     "agy": ["agy", "-p", RANK_PROMPT, "--output-format", "json", "--print-timeout", "60m"],
     "claude": ["claude", "-p", "/rank"],
+    # No model: scores by words against reports/busqueda/ficha.json (tools/pe_lexico.py).
+    "lexico": [sys.executable, "-X", "utf8", str(TOOLS / "pe_lexico.py"), "rank"],
 }
 IA_TIMEOUT = 65 * 60
 
@@ -664,71 +667,21 @@ STAGE_WORDS = {"estudiante": ["practicante"], "egresado": ["practicante", "anali
                "profesional": ["analista"], None: ["practicante", "analista"]}
 CYCLE_TEXT = {"1-4": "1.º a 4.º ciclo", "5-6": "5.º o 6.º ciclo", "7-8": "7.º u 8.º ciclo",
               "9+": "9.º ciclo o más (último año)"}
+EXPERIENCE_TEXT = {"ninguna": "sin experiencia laboral", "practicas": "prácticas previas", "menos1": "menos de 1 año",
+                   "1-3": "1 a 3 años", "3-5": "3 a 5 años", "5+": "más de 5 años"}
+CERT_TEXT = {"cfa1": "CFA nivel I", "cfa2": "CFA nivel II", "cfa3": "CFA nivel III", "frm": "FRM", "pmp": "PMP",
+             "bmc": "Bloomberg Market Concepts"}
 MERIT_TEXT = {"decimo": "Décimo superior", "quinto": "Quinto superior", "tercio": "Tercio superior",
               "medio": "Medio superior", "ninguno": "ninguno (sin décimo, quinto ni tercio superior)"}
 
 
-# What a CV says that points to each area (accents and case folded before matching).
-AREA_HINTS = {
-    "economia": ["economia", "economista", "econometr", "macroeconom", "microeconom", "politica economica", "stata", "eviews"],
-    "finanzas": ["finanzas", "financier", "valorizacion", "valuacion", "banca", "inversion", "riesgo", "tesoreria",
-                 "credito", "mercado de capitales", "cfa", "bloomberg", "modelamiento financiero"],
-    "contabilidad": ["contabilidad", "contable", "contador", "auditoria", "niif", "nic ", "tributacion", "tributari"],
-    "administracion": ["administracion", "gestion empresarial", "negocios", "business", "emprendimiento"],
-    "industrial": ["ingenieria industrial", "procesos", "logistica", "operaciones", "cadena de suministro", "supply chain", "lean"],
-    "datos": ["python", "sql", "power bi", "tableau", "analisis de datos", "data analyst", "machine learning", "ciencia de datos", " r "],
-    "marketing": ["marketing", "mercadeo", "ventas", "comercial", "branding", "publicidad"],
-    "derecho": ["derecho", "abogad", "juridic", "legal"],
-    "rrhh": ["recursos humanos", "psicologia", "reclutamiento", "seleccion de personal", "gestion del talento"],
-    "ingenieria": ["ingenieria civil", "ingenieria de minas", "ingenieria de sistemas", "ingenieria mecanica", "software"],
-    "comunicaciones": ["comunicacion", "periodismo", "audiovisual", "relaciones publicas"],
-}
-
-
-def cv_text(path: Path) -> str:
-    """The text of a CV in PDF (pypdf), Word (.docx) or plain text, accents and case folded."""
-    suffix = path.suffix.lower()
-    if suffix == ".pdf":
-        from pypdf import PdfReader  # requirements-pdf.txt
-        raw = "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
-    elif suffix == ".docx":
-        import zipfile
-        with zipfile.ZipFile(path) as z:
-            raw = re.sub(r"<[^>]+>", " ", z.read("word/document.xml").decode("utf-8", "replace"))
-    else:
-        raw = path.read_text(encoding="utf-8", errors="replace")
-    folded = unicodedata.normalize("NFKD", raw.lower())
-    return " " + re.sub(r"\s+", " ", "".join(c for c in folded if not unicodedata.combining(c))) + " "
-
-
-def read_cv(text: str) -> dict:
-    """What can be read from a CV without a model: areas (two or more hints, top three), the stage,
-    the cycle and the academic merit. Anything unclear is left out."""
-    hits = {a: sum(text.count(h) for h in hints) for a, hints in AREA_HINTS.items()}
-    areas = [a for a, n in sorted(hits.items(), key=lambda kv: -kv[1]) if n >= 2][:3]
-    merit = next((k for k, words in (("decimo", "decimo superior"), ("quinto", "quinto superior"),
-                                     ("tercio", "tercio superior"), ("medio", "medio superior")) if words in text), None)
-    m = re.search(r"\b(\d{1,2})\s*\.?\s*(?:°|º|o|vo|mo|to|ro|do|er)?\.?\s*ciclo", text)  # 8.º, 8vo, 8 ciclo
-    cycle = None
-    if m and 1 <= int(m.group(1)) <= 14:
-        n = int(m.group(1))
-        cycle = "1-4" if n <= 4 else "5-6" if n <= 6 else "7-8" if n <= 8 else "9+"
-    stage = ("egresado" if re.search(r"\begresad|\bbachiller\b|\btitulad", text) else
-             "estudiante" if cycle or re.search(r"\bestudiante\b|\b(cursando|en curso)\b", text) else None)
-    return {"area": ",".join(areas), "etapa": stage or "", "ciclo": (cycle or "") if stage == "estudiante" else "",
-            "merito": merit or ""}
+# The CV reader lives in pe_lexico.py, with the word-based ranking it feeds.
+AREA_HINTS, cv_text, read_cv = pe_lexico.AREA_HINTS, pe_lexico.cv_text, pe_lexico.read_cv
 
 
 def cmd_leer_cv(args) -> int:
     """empezar.sh's CV option: print what the CV says as shell assignments (fixed vocabulary only)."""
-    try:
-        found = read_cv(cv_text(args.cv))
-    except Exception as exc:  # an unreadable file is an answer too: nothing found
-        print(f"no pude leer {args.cv}: {exc}", file=sys.stderr)
-        return 1
-    for key, value in found.items():
-        print(f"cv_{key}={shlex.quote(value)}")
-    return 0
+    return pe_lexico.cmd_leer_cv(args)
 
 
 def fill_profile(path: Path, values: dict[str, str], lines: dict[str, str] | None = None) -> list[str]:
@@ -767,7 +720,7 @@ def cmd_consultas(args) -> int:
     spec.loader.exec_module(perfiles)
     starter = load_config(args.consultas) == perfiles.STARTER_QUERIES  # perfiles.py crear's example
     if args.es_ejemplo:  # for empezar.sh: 0 = nothing of the user's yet (missing or the example)
-        return 0 if starter or not args.consultas.exists() else 1
+        return 0 if starter or not args.consultas.exists() else 3  # 3, not 1: a crash must not read as "yours exists"
     if args.consultas.exists() and not starter and not args.reemplazar:
         print(f"ya existe {args.consultas}: no lo toco (edítalo, o usa --reemplazar)")
         return 0
@@ -806,13 +759,25 @@ def cmd_consultas(args) -> int:
     cfg = {"jobage": 14, "excluir_titulo": exclude + args.excluir, "consultas_manuales": phrases[:8], "consultas": queries}
     args.consultas.parent.mkdir(parents=True, exist_ok=True)
     args.consultas.write_text(json.dumps(cfg, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    # The ficha: what the word-based ranking (pe_lexico.py) compares each posting with.
+    ficha = {"carreras": [a for a in split(args.area) if a in AREAS], "universidad": args.universidad.strip(),
+             "etapa": stage or "", "ciclo": args.ciclo or "", "merito": args.merito or "",
+             "experiencia": args.experiencia or "", "ingles": args.ingles or "",
+             "herramientas": [k for k in split(args.herramientas) if k in pe_lexico.TOOL_HINTS],
+             "certificaciones": [k for k in split(args.certificaciones) if k in pe_lexico.CERT_HINTS],
+             "sectores": sorted(sectors), "modalidad": modes, "lugar": args.lugar or "lima", "ciudad": city}
+    (args.consultas.parent / "ficha.json").write_text(json.dumps(ficha, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     filled = fill_profile(args.perfil, {
         "[YOUR_TARGET_LEVEL]": STAGE_LEVEL.get(stage or "", ""),
         "[YOUR_WORK_MODE_PREFERENCE]": " o ".join(MODE_TEXT[m] for m in modes) if modes else
                                         ("presencial, híbrido o remoto" if split(args.modalidad) else ""),
         "[YOUR_ABROAD]": ABROAD_TEXT.get(args.lugar or "", ""),
-        "[YOUR_CITY]": city if args.lugar else "", "[YOUR_COUNTRY]": "Perú" if args.lugar else ""},
-        {"Ciclo": CYCLE_TEXT.get(args.ciclo or "", ""), "Mérito académico": MERIT_TEXT.get(args.merito or "", "")})
+        "[YOUR_CITY]": city if args.lugar else "", "[YOUR_COUNTRY]": "Perú" if args.lugar else "",
+        "[INSTITUTION]": args.universidad.strip(),
+        "[YOUR_PRIMARY_SKILLS]": ", ".join(pe_lexico.TOOL_NAMES[k] for k in ficha["herramientas"])},
+        {"Ciclo": CYCLE_TEXT.get(args.ciclo or "", ""), "Mérito académico": MERIT_TEXT.get(args.merito or "", ""),
+         "Inglés": args.ingles or "", "Experiencia": EXPERIENCE_TEXT.get(args.experiencia or "", ""),
+         "Certificaciones": ", ".join(CERT_TEXT[k] for k in ficha["certificaciones"])})
     where = {"privado": "privado", "publico": "público", "investigacion": "investigación", "otros": "otros"}
     print(f"{len(queries)} búsquedas en {args.consultas} · sector {', '.join(where[s] for s in sorted(sectors) if s in where)}"
           + (f" · {', '.join(phrases[:4])}{'…' if len(phrases) > 4 else ''}" if sectors - {"publico"} else "")
@@ -820,7 +785,10 @@ def cmd_consultas(args) -> int:
           + ". Puedes editarlo cuando quieras (formato en docs/PIPELINE.md).")
     if filled:
         names = {"[YOUR_TARGET_LEVEL]": "nivel", "[YOUR_WORK_MODE_PREFERENCE]": "modalidad", "[YOUR_ABROAD]": "fuera del Perú",
-                 "[YOUR_CITY]": "ciudad", "[YOUR_COUNTRY]": None, "Ciclo": "ciclo", "Mérito académico": "mérito"}
+                 "[YOUR_CITY]": "ciudad", "[YOUR_COUNTRY]": None, "Ciclo": "ciclo", "Mérito académico": "mérito",
+                 "[INSTITUTION]": "universidad", "[YOUR_PRIMARY_SKILLS]": "herramientas", "Inglés": "inglés",
+                 "Experiencia": "experiencia", "Certificaciones": "certificaciones"}
+        print(f"  tu ficha para el puntaje sin IA: {args.consultas.parent / 'ficha.json'}")
         print(f"  también en {args.perfil}: {', '.join(n for k in filled if (n := names.get(k, k)))} (solo lo que estaba vacío)")
     return 0
 
@@ -1178,6 +1146,14 @@ def main(argv=None) -> int:
     cq.add_argument("--area", action="append", default=[], help=f"areas, comma-separated: {', '.join(AREAS)}")
     cq.add_argument("--ciclo", choices=sorted(CYCLE_TEXT), help="a student's cycle: 1-4, 5-6, 7-8, 9+")
     cq.add_argument("--merito", choices=sorted(MERIT_TEXT), help="decimo, quinto, tercio, medio or ninguno")
+    cq.add_argument("--universidad", default="", help="university, for the ficha and the profile")
+    cq.add_argument("--experiencia", choices=sorted(pe_lexico.EXPERIENCE_YEARS),
+                    help="ninguna, practicas, menos1, 1-3, 3-5, 5+")
+    cq.add_argument("--ingles", choices=sorted(pe_lexico.ENGLISH_ORDER), help="basico, intermedio, avanzado, nativo")
+    cq.add_argument("--herramientas", action="append", default=[],
+                    help=f"tools, comma-separated: {', '.join(pe_lexico.TOOL_HINTS)}")
+    cq.add_argument("--certificaciones", action="append", default=[],
+                    help=f"comma-separated: {', '.join(pe_lexico.CERT_HINTS)}")
     cq.add_argument("--perfil", type=Path, default=Path("CLAUDE.md"), help="profile CLAUDE.md to fill in")
     cq.add_argument("--excluir", action="append", default=[], help="extra title words to leave out")
     cq.add_argument("--reemplazar", action="store_true", help="overwrite an existing consultas.json")
