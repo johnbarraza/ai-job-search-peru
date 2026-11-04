@@ -28,8 +28,22 @@ paso "tus datos y tu CV (con un agente de IA, opcional)"
 if grep -q "\[YOUR_NAME\]" "$PERFIL/CLAUDE.md" 2>/dev/null; then
   if command -v claude >/dev/null 2>&1 && [ -t 0 ]; then
     if [ "$(ask '  ¿Abrir Claude Code ahora para armar tu perfil con /setup? [S/n] ')" != "n" ]; then
-      echo "  Se abre Claude Code. Responde sus preguntas; al terminar escribe /exit y esto sigue."
-      claude "/setup --user $nombre" || true
+      case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+          # Git Bash's window (mintty) is not a full Windows console and interactive programs can
+          # misbehave there: Claude Code gets its own PowerShell window, and this one waits.
+          ps_cmd="Start-Process powershell -WorkingDirectory '$(cygpath -w "$ROOT")' -ArgumentList '-NoExit -Command claude ''/setup --user $nombre'''"
+          if powershell.exe -NoProfile -Command "$ps_cmd"; then
+            echo "  Se abrió Claude Code en otra ventana. Responde sus preguntas ahí."
+            ask "  Cuando termine /setup, vuelve a esta ventana y presiona Enter para seguir... " >/dev/null
+          else
+            echo "  No pude abrir otra ventana. Abre PowerShell en esta carpeta, escribe  claude  y luego  /setup --user $nombre"
+            ask "  Cuando termines, presiona Enter aquí para seguir... " >/dev/null
+          fi ;;
+        *)
+          echo "  Se abre Claude Code. Responde sus preguntas; al terminar escribe /exit y esto sigue."
+          claude "/setup --user $nombre" || echo "  Claude Code no abrió bien: ábrelo tú en esta carpeta con  claude  y escribe  /setup --user $nombre" ;;
+      esac
     fi
   elif command -v agy >/dev/null 2>&1; then
     echo "  Después abre agy en perfiles/$nombre y pídele: «sigue .claude/commands/setup.md para armar mi perfil»."
