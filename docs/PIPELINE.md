@@ -62,6 +62,16 @@ La página ofrece atajos por tipo de puesto (Trabajo de campo, RR. HH., Práctic
 
 Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cómo postular y si ya hay CV a medida) y las primeras ofertas para postular. `--json` imprime lo mismo como datos, junto con las que aún no tienen CV.
 
+### `evaluar`: pasar las nuevas por `/rank` sin abrir el agente
+
+Las ofertas que trae `buscar` quedan en **Nuevas sin evaluar** (el recuadro naranja de arriba en la página) hasta que pasan por `/rank`. Sin eso no tienen puntaje y no aparecen en «Para decidir». La página trae un botón que copia este comando:
+
+```powershell
+python tools/pe_pipeline.py evaluar --ia claude     # o --ia agy
+```
+
+Corre `/rank` sin supervisión con ese agente (puede tardar varios minutos), después `actualizar`, y deja todo en `reports/busqueda/diario.log`. Vuelve a abrir o recargar la página al terminar. Si la página tiene días, muestra un aviso con la fecha y cómo traer ofertas nuevas.
+
 ### `descartar`: sacar de la lista lo que no te interesa
 
 En la página, dentro de cada oferta, **Descartar** la oculta en ese navegador. El botón **Copiar comando** de la barra de abajo arma la línea para guardarlo en el perfil:

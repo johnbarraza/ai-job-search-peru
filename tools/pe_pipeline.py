@@ -738,6 +738,58 @@ def next_run(hour: int, minute: int, utc: bool, now: datetime) -> datetime:
     return at if at > now else at + timedelta(days=1)
 
 
+def run_step(key: str, cmd: list[str], out) -> bool:
+    """Run one step of `diario` or `evaluar`, echo its output through out(), and say whether it worked."""
+    exe = shutil.which(cmd[0])
+    if not exe:
+        out(f"  falló: no encuentro «{cmd[0]}» en el PATH")
+        return False
+    try:
+        proc = subprocess.run([exe, *cmd[1:]], capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=IA_TIMEOUT if key == "rank" else None)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        out(f"  falló: {exc}")
+        return False
+    text, step_ok = proc.stdout, proc.returncode == 0
+    if key == "buscar":
+        step_ok |= proc.returncode == 2  # it ran; a portal that failed is in cobertura.json
+    if cmd[0] == "agy":  # --output-format json: {"status": "SUCCESS", "response": "...", ...}
+        try:
+            reply = json.loads(proc.stdout)
+            text = f'{reply.get("status")}\n{reply.get("response") or ""}'
+            step_ok &= reply.get("status") == "SUCCESS"
+        except ValueError:
+            pass
+    for line in (text + "\n" + proc.stderr).splitlines():
+        if line.strip():
+            out("  " + line)
+    if cmd[0] == "agy" and proc.stderr.strip():
+        out("  (si arriba agy nombra una herramienta sin permiso, la saltó y terminó igual: ver docs/PIPELINE.md, «diario»)")
+    return step_ok
+
+
+def cmd_evaluar(args) -> int:
+    """/rank on the postings not yet evaluated, by an agent CLI, then actualizar: what the review
+    page's "Evaluar las nuevas" button copies. Logged in diario.log like the daily run."""
+    py = [sys.executable, "-X", "utf8", str(Path(__file__).resolve())]
+    steps = [("rank", f"Evaluación /rank con {args.ia} (puede tardar varios minutos)", IA[args.ia]),
+             ("actualizar", "Página y estado", py + ["actualizar"] + (["--titulo", args.titulo] if args.titulo else []))]
+    DAILY_LOG.parent.mkdir(parents=True, exist_ok=True)
+    ok = True
+    with DAILY_LOG.open("a", encoding="utf-8") as log:
+        def out(line: str) -> None:
+            print(line)
+            log.write(line + "\n")
+            log.flush()
+
+        out(f"== {fecha_hora(datetime.now(PERU))} (hora de Perú, UTC-5) · {Path.cwd().name} · evaluar ==")
+        for key, label, cmd in steps:
+            out(f"· {label}")
+            ok &= run_step(key, cmd, out)
+        out("== terminado sin errores ==\n" if ok else "== hubo errores: revisa arriba y vuelve a correr ==\n")
+    return 0 if ok else 1
+
+
 def cmd_diario(args) -> int:
     """One day's run. reports/busqueda/diario-estado.json records which steps finished, so a run
     cut short (window closed, PC turned off, a step failed) resumes that same day from the step
@@ -786,31 +838,7 @@ def cmd_diario(args) -> int:
                 out(f"· {label}: ya hecho en esta corrida")
                 continue
             out(f"· {label}")
-            exe = shutil.which(cmd[0])
-            if not exe:
-                out(f"  falló: no encuentro «{cmd[0]}» en el PATH")
-                continue
-            try:
-                proc = subprocess.run([exe, *cmd[1:]], capture_output=True, text=True, encoding="utf-8",
-                                      errors="replace", timeout=IA_TIMEOUT if key == "rank" else None)
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                out(f"  falló: {exc}")
-                continue
-            text, step_ok = proc.stdout, proc.returncode == 0
-            if key == "buscar":
-                step_ok |= proc.returncode == 2  # it ran; a portal that failed is in cobertura.json
-            if cmd[0] == "agy":  # --output-format json: {"status": "SUCCESS", "response": "...", ...}
-                try:
-                    reply = json.loads(proc.stdout)
-                    text = f'{reply.get("status")}\n{reply.get("response") or ""}'
-                    step_ok &= reply.get("status") == "SUCCESS"
-                except ValueError:
-                    pass
-            for line in (text + "\n" + proc.stderr).splitlines():
-                if line.strip():
-                    out("  " + line)
-            if cmd[0] == "agy" and proc.stderr.strip():
-                out("  (si arriba agy nombra una herramienta sin permiso, la saltó y terminó igual: ver docs/PIPELINE.md, «diario»)")
+            step_ok = run_step(key, cmd, out)
             if step_ok:
                 done.add(key)
                 save()
@@ -951,7 +979,12 @@ def main(argv=None) -> int:
     ds.add_argument("claves", nargs="+", help="posting keys, as the page's 'Copiar comando' writes them")
     ds.add_argument("--deshacer", action="store_true", help="put them back as they were")
     ds.add_argument("--state", type=Path, default=STATE)
+    ev = sub.add_parser("evaluar", help="/rank the postings not yet evaluated with an agent CLI, then actualizar")
+    ev.add_argument("--ia", choices=sorted(IA), default="claude", help="agent CLI that runs /rank (default claude)")
+    ev.add_argument("--titulo", help="name in the page heading")
     args = ap.parse_args(argv)
+    if args.cmd == "evaluar":
+        return cmd_evaluar(args)
     if args.cmd == "descartar":
         return cmd_descartar(args)
     if args.cmd == "diario":

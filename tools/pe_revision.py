@@ -59,7 +59,11 @@ INTERN_LEVELS = {"práctica preprofesional", "práctica profesional", "práctica
 SECTOR_GROUPS = [
     ("Sector público", r"ministerio|municipalidad|gobierno regional|superintendencia|banco central de reserva|\bbcrp\b"
                        r"|\bsunat\b|\bsbs\b|\bindecopi\b|\bosinergmin\b|\bosiptel\b|\bsunass\b|\bproinversion\b|poder judicial"
-                       r"|\bseguro social\b|\bessalud\b|organismo|\bentidad publica\b|administracion publica"),
+                       r"|\bseguro social\b|\bessalud\b|organismo|\bentidad publica\b|administracion publica"
+                       r"|\bminem\b|\bmef\b|\bminsa\b|\bminedu\b|\bmincetur\b|\bminam\b|\bmidis\b|\bmtpe\b|\bproduce\b"
+                       r"|\bsunafil\b|\bsunarp\b|\bsunedu\b|\bsmv\b|mercado de valores|contraloria|defensoria|\breniec\b"
+                       r"|\bjne\b|\bonpe\b|\binei\b|\bosce\b|\bservir\b|banco de la nacion|\bcofide\b|agrobanco|petroperu"
+                       r"|\bfonafe\b|\bsedapal\b|congreso de la republica|ministerio publico|\bmigraciones\b"),
     ("Investigación y academia", r"universi|research|innovations for poverty|\bipa\b|think tank|\bgrade\b"
                                  r"|center for|centre for|instituto de estudios|growth center|academ"),
     ("ONG y organismos internacionales", r"banco mundial|world bank|banco interamericano|\bbid\b|naciones unidas|\bonu\b"
@@ -112,7 +116,8 @@ EMPLOYER_TYPES = [("privado", "Sector privado"), ("estado", "Sector público"), 
 def employer_type(r: dict) -> str:
     """privado / estado / investigacion / otros: who the employer is, for the "Tipo de puesto" row."""
     group = sector_group(r)
-    if group == "Sector público":
+    # Programas de extensión (BCRP, SBS, SMV, MEF...) are a public-sector format.
+    if group == "Sector público" or r.get("level") == "programa de extensión":
         return "estado"
     if (group == "Investigación y academia" or r.get("level") == "asistente de investigación"
             or RESEARCH_TITLE.search(r.get("title") or "")):
@@ -927,6 +932,14 @@ h1{font-size:28px;line-height:1.15;letter-spacing:-.01em;margin-top:4px}
 .top-right{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .kpis{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
 .kpi{padding:10px 18px;border-right:1px solid var(--line);min-width:96px}.kpi:last-child{border-right:0}
+a.kpi{color:inherit;text-decoration:none}a.kpi.new{background:var(--warn-bg);color:var(--warn-ink)}a.kpi.new b{color:var(--warn)}
+a.kpi.new:hover span{text-decoration:underline}
+.stale{margin:14px 0 0;padding:12px 16px;border-radius:10px;background:var(--warn-bg);color:var(--warn-ink);font-size:14px}
+.stale[hidden]{display:none}
+.evalbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.evalbar button{min-height:40px;padding:0 14px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
+.evalbar button.ghost{background:transparent;color:var(--ink-2);border-color:var(--line-strong)}
+.evalbar .fine{flex-basis:100%;margin:0}
 .kpi b{display:block;font-size:22px;line-height:1.2}.kpi span{font-size:12px;color:var(--dim)}
 .kpi.go{background:var(--accent-soft)}.kpi.go b{color:var(--accent)}.kpi.go span{color:var(--accent-deep)}
 .kpi.warn b{color:var(--warn)}
@@ -1293,6 +1306,15 @@ JS = """
     document.getElementById('dr-show').addEventListener('click',function(){showDrop=!showDrop;refreshBar();apply();});
   }
   refreshBar();
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('button[data-copy]');if(b)copy(b.dataset.copy,b);
+  });
+  // An old page looks like "no new postings": say how old it is and how to refresh it.
+  var stale=document.getElementById('stale');
+  if(stale){
+    var g=new Date(stale.dataset.generated+'T00:00:00'),now=new Date(),days=Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-g)/864e5);
+    if(days>=1){document.getElementById('stale-ago').textContent=' (hace '+days+(days===1?' día':' días')+')';stale.hidden=false;}
+  }
 
   // Filters and order.
   var q=document.getElementById('q'),fa=document.getElementById('fa'),fr=document.getElementById('fr'),
@@ -1484,10 +1506,20 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
             f'<td>{esc((p.get("portal") or "?").replace("-", " "))}</td><td class="dim">{esc(p.get("query") or "")}</td></tr>')
     portal_opts = "".join(f'<option value="{esc(x)}">{esc(x.replace("-", " "))}</option>' for x in portals)
     query_opts = "".join(f'<option value="{esc(x)}">{esc(x)}</option>' for x in queries)
+    generated = str(report.get("generated") or "")
+    generated = (date.fromisoformat(generated[:10]).strftime("%d/%m/%Y")
+                 if re.match(r"\d{4}-\d{2}-\d{2}", generated) else "—")
     return (f'<details class="nuevas"><summary>Nuevas sin evaluar ({len(rows)}) · última búsqueda '
-            f'{esc(report.get("generated") or "—")}</summary>'
-            '<p class="fine">Lo que trajo <code>python tools/pe_pipeline.py buscar</code> y aún no pasa por <code>/rank</code>: '
-            'sin encaje, frescura ni lugar verificados. Solo para darles una mirada.</p>'
+            f'{esc(generated)}</summary>'
+            '<p class="fine">Lo que trajo la búsqueda y aún no pasa por <code>/rank</code>: '
+            'sin encaje, frescura ni lugar verificados. Evalúalas para que pasen a «Para decidir» con su puntaje.</p>'
+            '<div class="evalbar">'
+            '<button type="button" data-copy="python tools/pe_pipeline.py evaluar --ia claude">Copiar comando para evaluarlas (Claude Code)</button>'
+            '<button type="button" class="ghost" data-copy="python tools/pe_pipeline.py evaluar --ia agy">Con Antigravity (agy)</button>'
+            '<button type="button" class="ghost" data-copy="Corre /rank sobre las ofertas nuevas sin evaluar de este perfil y al terminar '
+            'python tools/pe_pipeline.py actualizar. No postules ni envíes nada.">Copiar pedido para el agente</button>'
+            '<p class="fine">El comando se pega en la terminal del perfil: corre <code>/rank</code> sin supervisión (puede tardar '
+            'varios minutos) y rehace esta página; luego recárgala. El pedido se pega en el agente abierto en el perfil.</p></div>'
             + (f'<p class="fine">Ya postuladas en Bolsa UP ({len(applied)}): '
                + ' · '.join(link(p.get("url"), p.get("title") or "oferta") for p in applied) + '</p>' if applied else '')
             + '<div class="filters"><input id="nq" type="search" placeholder="Buscar en las nuevas" aria-label="Buscar en las nuevas">'
@@ -1778,9 +1810,13 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     by_role = Counter(tag for r in main_rows for tag in card_roles(r))
     known_ids = {pe_frescura.posting_id({"id": e.get("id"), "url": e.get("url")})
                  for e in data["seen"].values() if isinstance(e, dict)}
-    pending_servir = sum(1 for p in ((data.get("nuevas") or {}).get("nuevas") or [])
-                         if isinstance(p, dict) and p.get("portal") == "talento-peru"
-                         and pe_frescura.posting_id(p) not in known_ids)
+    # SERVIR postings found but not through /rank yet: this search's unregistered ones plus every
+    # earlier one registered as new (the link filters the "Nuevas" table to SERVIR).
+    pending_servir = (sum(1 for p in ((data.get("nuevas") or {}).get("nuevas") or [])
+                          if isinstance(p, dict) and p.get("portal") == "talento-peru"
+                          and pe_frescura.posting_id(p) not in known_ids)
+                      + sum(1 for e in data["seen"].values() if isinstance(e, dict) and e.get("status") == "new"
+                            and e.get("fit") is None and str(e.get("portal") or "").startswith("talento-peru")))
     def chip_row(name: str, label: str, items: list[tuple[str, str, int, str]]) -> str:
         if len(items) < 2:
             return ""
@@ -1863,7 +1899,13 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
                   ("sec-descartadas", len(out_rows), "Descartadas", "no elegibles"),
                   ("sec-sin-evaluar", len(data["unranked"]), "Sin evaluar", "vistas y relevantes")]
     if nuevas:
-        more_cards.append(("sec-nuevas", n_nuevas, "Nuevas", "de la última búsqueda"))
+        more_cards.append(("sec-nuevas", n_nuevas, "Nuevas", "sin evaluar"))
+    # Up front: postings found but not yet through /rank are easy to miss further down.
+    kpi_new = (f'<a class="kpi new" href="#sec-nuevas" data-open="sec-nuevas" title="Encontradas pero aún sin /rank: abrir la lista">'
+               f'<b>{n_nuevas}</b><span>nuevas sin evaluar</span></a>' if n_nuevas else "")
+    stale = (f'<div class="stale" id="stale" data-generated="{esc(today.isoformat())}" hidden>Esta página es del '
+             f'{esc(today.strftime("%d/%m/%Y"))}<span id="stale-ago"></span>. Para traer ofertas nuevas, en la terminal del perfil: '
+             '<code>python tools/pe_pipeline.py diario</code> (busca y rehace la página) y vuelve a abrirla.</div>')
     more_cards.append(("sec-portales", len(cov_portals), "Portales",
                        f"{clean} de {len(clis)} con búsqueda automática sin errores" if clis else "cobertura"))
     more = "".join(f'<a href="#{sid}" data-open="{sid}"><b>{n}</b><strong>{esc(lbl)}</strong><span>{esc(note)}</span></a>'
@@ -1874,13 +1916,14 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     coverage = coverage.replace('<details class="cov">', '<details class="sec cov" id="sec-portales">', 1)
 
     return f"""<header class="top"><div class="wrap-x">
-<div><div class="eyebrow">Revisión de ofertas · {esc(today.strftime('%d/%m/%Y'))}</div>
+<div><div class="eyebrow">Revisión de ofertas · página actualizada el {esc(today.strftime('%d/%m/%Y'))}</div>
 <h1>{heading}</h1>
 <p class="run-date">Última búsqueda: <strong>{run_label}</strong></p></div>
-<div class="top-right"><div class="kpis">{kpis}</div>
+<div class="top-right"><div class="kpis">{kpi_new}{kpis}</div>
 <button type="button" class="icon-btn" id="theme" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">◐</button></div>
 </div></header>
 <main class="wrap-x">
+{stale}
 {week}
 <section class="decide" aria-label="Ofertas para decidir">
 <aside class="side" aria-label="Filtros">

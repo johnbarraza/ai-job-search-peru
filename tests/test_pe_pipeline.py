@@ -477,5 +477,20 @@ class Descartar(unittest.TestCase):
                 self.assertEqual(pp.main(["descartar", "no-existe", "--state", str(state)]), 1)
 
 
+class Evaluar(unittest.TestCase):
+    def test_runs_rank_with_the_chosen_cli_then_refreshes_the_page(self):
+        calls = []
+
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            return mock.Mock(returncode=0, stdout='{"status": "SUCCESS", "response": "ok"}' if "agy" in cmd[0] else "ok", stderr="")
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pp, "DAILY_LOG", Path(tmp) / "diario.log"),                 mock.patch.object(pp.shutil, "which", side_effect=lambda c: c),                 mock.patch.object(pp.subprocess, "run", side_effect=fake_run), mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(pp.main(["evaluar", "--ia", "agy", "--titulo", "Ana"]), 0)
+            self.assertIn("evaluar ==", (Path(tmp) / "diario.log").read_text(encoding="utf-8"))
+        self.assertEqual(calls[0][:2], ["agy", "-p"])
+        self.assertEqual(calls[1][-3:], ["actualizar", "--titulo", "Ana"])
+
+
 if __name__ == "__main__":
     unittest.main()
