@@ -2,6 +2,12 @@
   <img src="assets/peru/banner.svg" alt="AI Job Search, edición Perú" width="100%">
 </p>
 
+<p align="center">
+  <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest/download/ai-job-search-peru.zip"><img src="https://img.shields.io/badge/Descargar-ZIP-c8102e?style=for-the-badge&logo=github" alt="Descargar ZIP"></a>
+  <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest"><img src="https://img.shields.io/github/downloads/johnbarraza/ai-job-search-peru/total?style=for-the-badge&label=descargas&color=555" alt="Descargas del ZIP"></a>
+  <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest"><img src="https://img.shields.io/github/v/release/johnbarraza/ai-job-search-peru?style=for-the-badge&label=versi%C3%B3n&color=555" alt="Última versión"></a>
+</p>
+
 # AI Job Search · Edición Perú
 
 Herramientas para buscar ofertas en portales peruanos, revisar requisitos, preparar un CV por puesto y llevar el estado de cada postulación. Es una adaptación para Perú de [AI Job Search](https://github.com/ai-job-search-dev/ai-job-search), iniciado por Mads Lorentzen.
@@ -40,6 +46,8 @@ Herramientas para buscar ofertas en portales peruanos, revisar requisitos, prepa
 | **Google Chrome** | Bolsa UP (inicias sesión tú) | Solo para la Bolsa UP |
 | **Un agente:** [Claude Code](https://claude.com/claude-code), Codex o [Antigravity CLI](https://antigravity.google/docs/cli/headless) | `/setup`, `/rank`, `/apply`, `/interview` | No. Cada uno pide su propia suscripción o créditos de API |
 
+**Instalar Git:** Windows `winget install --id Git.Git -e` (o el instalador de [git-scm.com](https://git-scm.com/)) · Mac `xcode-select --install` · Linux `sudo apt install git`. Cierra y abre la terminal, y comprueba con `git --version`. Git hace falta también con el ZIP: los perfiles, el hook de privacidad y `git pull` dependen de él.
+
 <details>
 <summary>Letra pequeña: otros agentes, motores LaTeX y extracción de texto del PDF</summary>
 
@@ -57,6 +65,8 @@ Para tu propia búsqueda, **clona** el repositorio:
 git clone --recurse-submodules https://github.com/johnbarraza/ai-job-search-peru.git
 cd ai-job-search-peru
 ```
+
+**O baja el ZIP** de la [última versión](https://github.com/johnbarraza/ai-job-search-peru/releases/latest) (`ai-job-search-peru.zip`) y descomprímelo. Es un clon completo: trae `vendor/jev-browse` y la carpeta `.git`, así que funciona igual que `git clone` y se actualiza con `git pull`. No uses el "Source code (zip)" que GitHub agrega solo: no trae ninguna de las dos.
 
 > [!IMPORTANT]
 > **Un fork de este repositorio siempre es público**: GitHub no permite forks privados de repositorios públicos. Tus datos personales (nombre, contacto, historial, sueldo esperado, CV) viven en `perfiles/<nombre>/`. Esa carpeta está ignorada por Git y es un *worktree* en la rama local `perfil/<nombre>`. Un hook `pre-push` impide que esa rama llegue a un remoto, y `tools/privacy_guard.py` revisa los demás pushes. Aun así:
