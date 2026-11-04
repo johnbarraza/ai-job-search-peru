@@ -152,7 +152,7 @@ python tools/perfiles.py actualizar --todos
 
 ## Instrucciones para un asistente de IA
 
-Si le pides a Claude Code, Codex u otro agente que instale o ejecute el proyecto, pégale esto:
+Para que el agente haga **todo** (instalar, armar tu perfil, la primera búsqueda y la página), usa el prompt de la [forma 3 del README](../README.md#forma-3-con-un-agente-de-ia). Si solo quieres que instale, pégale esto:
 
 > Instala y ejecuta este proyecto siguiendo `docs/INSTALAR.md`, en este orden:
 > 1. Verifica `git --version`, `python --version` (≥ 3.10) y `bun --version`. Si falta alguno, dime el comando de instalación del paso 2 y espera a que lo instale: no instales programas del sistema sin preguntar.

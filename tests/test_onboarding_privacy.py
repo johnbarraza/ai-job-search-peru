@@ -49,7 +49,7 @@ class TestForkWarningsAtTheDecisionPoint(unittest.TestCase):
 
     def test_readme_quick_start_warns_next_to_the_fork_command(self):
         # Peru fork: the README is in Spanish; the quick start's first step is "Descargar".
-        body = section(README.read_text(encoding="utf-8"), "### 1. Descargar")
+        body = section(README.read_text(encoding="utf-8"), "#### 1. Descargar")
         self.assertIn("gh repo fork", body, "sanity: the fork command lives in this section")
         self.assert_warns(body, "README", public=r"público", personal="datos personales")
 

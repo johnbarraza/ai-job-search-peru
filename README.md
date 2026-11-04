@@ -20,7 +20,7 @@ Herramientas para buscar ofertas en portales peruanos, revisar requisitos, prepa
 
 ## Contenido
 
-- [Inicio rápido](#inicio-rápido) · [el camino corto: dos scripts](#el-camino-corto-dos-scripts)
+- [Inicio rápido](#inicio-rápido): [forma 1, con dos scripts](#forma-1-con-dos-scripts-recomendada) · [forma 2, paso a paso](#forma-2-paso-a-paso-a-mano) · [forma 3, con un agente de IA](#forma-3-con-un-agente-de-ia)
 - [El flujo, paso a paso](#el-flujo-paso-a-paso)
 - [Comandos](#comandos)
 - [Cómo funciona `/apply`](#cómo-funciona-apply)
@@ -33,9 +33,15 @@ Herramientas para buscar ofertas en portales peruanos, revisar requisitos, prepa
 
 ## Inicio rápido
 
-¿Primera vez con Python o con una terminal? Sigue [docs/INSTALAR.md](docs/INSTALAR.md). Explica cada paso desde cero, para Windows y Mac.
+Hay tres formas de instalarlo y empezar, con el mismo resultado:
 
-### El camino corto: dos scripts
+- **Forma 1, con dos scripts (recomendada):** instalan lo que falta, crean tu perfil y hacen la primera búsqueda, preguntándote lo necesario.
+- **Forma 2, paso a paso:** los mismos pasos, comando por comando, para ver o controlar cada uno.
+- **Forma 3, con un agente de IA:** le pegas un prompt a Claude Code, `agy` o Codex y él hace los pasos, te pregunta lo necesario y te explica cualquier error.
+
+¿Primera vez con Python o con una terminal? [docs/INSTALAR.md](docs/INSTALAR.md) explica cada paso desde cero, para Windows y Mac.
+
+### Forma 1: con dos scripts (recomendada)
 
 Necesitas **Git** instalado ([cómo](#qué-necesitas)) y, si vas a usar IA, **Claude Code o `agy` ya instalado y con sesión iniciada** ([docs/AGENTES_IA.md](docs/AGENTES_IA.md)). Lo demás lo hacen los scripts.
 
@@ -68,9 +74,11 @@ Necesitas **Git** instalado ([cómo](#qué-necesitas)) y, si vas a usar IA, **Cl
 
 **Después, cada día:** abre `perfiles/<tu-nombre>/reports/revision-ofertas.html`. Si arriba aparece el recuadro naranja de **nuevas sin evaluar**, su botón copia el comando que las pasa por `/rank` con Claude o `agy`. En cada oferta: **Guardar**, **Hacer CV** (te copia el pedido para el agente) o **Descartar**.
 
-Los pasos que siguen hacen lo mismo a mano, uno por uno.
+### Forma 2: paso a paso, a mano
 
-### Qué necesitas
+Hace lo mismo que la forma 1, comando por comando. Lo que necesitas instalar vale para las dos formas.
+
+#### Qué necesitas
 
 | Programa | Para qué | ¿Obligatorio? |
 |---|---|---|
@@ -92,7 +100,7 @@ Los pasos que siguen hacen lo mismo a mano, uno por uno.
 
 </details>
 
-### 1. Descargar
+#### 1. Descargar
 
 Para tu propia búsqueda, **clona** el repositorio:
 
@@ -108,7 +116,7 @@ cd ai-job-search-peru
 > - **Para buscar trabajo:** clona, o usa un **repositorio privado** con este como `upstream` ([SETUP.md, sección 8](SETUP.md#8-pulling-upstream-updates-into-your-fork)).
 > - **Haz fork solo para contribuir:** `gh repo fork johnbarraza/ai-job-search-peru --clone` y luego `gh repo set-default <tu-usuario>/ai-job-search-peru`. Sin esa segunda línea, `gh issue create` publica en el repositorio original ([SETUP.md, sección 2](SETUP.md#2-fork-and-clone)).
 
-### 2. Instalar
+#### 2. Instalar
 
 Desde la carpeta del proyecto:
 
@@ -141,7 +149,7 @@ Corre `bun install --ignore-scripts` en cada CLI de `.agents/skills/*/cli/`. Las
 
 </details>
 
-### 3. Crear tu perfil
+#### 3. Crear tu perfil
 
 Cada persona tiene su carpeta `perfiles/<nombre>/`, con su CV, sus consultas y sus resultados.
 
@@ -168,7 +176,7 @@ python tools/perfiles.py crear <nombre> --cv "C:\ruta\a\mi_cv.pdf"
 
 Luego completa a mano `perfiles/<nombre>/CLAUDE.md` y `perfiles/<nombre>/reports/busqueda/consultas.json`. Ver [Qué archivos editar a mano](#qué-archivos-editar-a-mano).
 
-### 4. Buscar
+#### 4. Buscar
 
 ```powershell
 cd perfiles\<nombre>
@@ -184,7 +192,7 @@ Abre `reports\revision-ofertas.html` con doble clic. Funciona sin internet y mue
 - la cobertura de cada portal;
 - con un agente, además el encaje con tu perfil y el botón **CV sugerido**.
 
-### 5. Dejarlo automático (opcional)
+#### 5. Dejarlo automático (opcional)
 
 ```powershell
 python tools/pe_pipeline.py programar --hora "8:00 am"
@@ -192,7 +200,7 @@ python tools/pe_pipeline.py programar --hora "8:00 am"
 
 Desde ese día, la búsqueda y la página se actualizan solas a esa hora: Programador de tareas en Windows, `launchd` en Mac. La hora la eliges tú y es de Perú (UTC-5): acepta `8:00 am`, `7:30 p. m.` o `20:30`; `--utc` la lee en UTC. Para cambiarla, vuelve a correr `programar`. Si la PC estaba apagada a esa hora o la corrida se cortó, se retoma desde el paso pendiente al iniciar sesión. Con `--ia agy` o `--ia claude`, también corre `/rank` después de buscar. Cada corrida queda en `reports/busqueda/diario.log`, con fecha DD/MM/AAAA. Detalles en [docs/PIPELINE.md](docs/PIPELINE.md#diario-y-programar-la-búsqueda-todos-los-días-sola).
 
-### 6. Evaluar y postular (con un agente)
+#### 6. Evaluar y postular (con un agente)
 
 Dentro de `perfiles/<nombre>/`:
 
@@ -204,6 +212,38 @@ python tools/pe_pipeline.py actualizar     # la página muestra el encaje y el C
 ```
 
 **Tú revisas el PDF final y decides si se envía.** Ningún comando postula por su cuenta. El envío por la Bolsa UP es un comando aparte que exige `--confirm`.
+
+### Forma 3: con un agente de IA
+
+Necesitas **Git** y un agente **instalado y con sesión iniciada**: Claude Code, Antigravity CLI (`agy`) o Codex ([docs/AGENTES_IA.md](docs/AGENTES_IA.md)). Descarga el proyecto (paso 1 de la forma 2), abre una terminal **en la carpeta del proyecto**, inicia el agente (`claude`, `agy` o `codex`) y pégale esto:
+
+```text
+Ayúdame a dejar listo este proyecto (AI Job Search · Edición Perú) en esta PC y a correr mi primera búsqueda.
+Sigue el README (formas 1 y 2) y docs/INSTALAR.md, en este orden, y avísame antes de empezar cada paso:
+
+1. Revisa qué tengo: git, Python 3.10 o más nuevo, Bun y LaTeX (lualatex). Si falta alguno, dime el
+   comando para instalarlo y espera mi OK: no instales programas del sistema sin preguntarme.
+2. Instala el proyecto con: bash instalar_basico.sh
+   (crea .venv, las librerías con versión fija y los buscadores). Si falla, explícame el error y cómo seguir.
+3. Pregúntame mi nombre (una palabra) y crea mi perfil: python tools/perfiles.py crear <nombre>
+   Desde ahí, todo lo de la búsqueda se corre dentro de perfiles/<nombre>/.
+4. Arma mi perfil: si eres Claude Code, corre /setup --user <nombre>; si no, sigue .claude/commands/setup.md.
+   Pídeme mi CV y lo que busco; no inventes datos.
+5. Pregúntame qué puestos busco y en qué ciudad, y crea mis búsquedas en el perfil:
+   python tools/pe_pipeline.py consultas --q "<puestos separados por comas>" --ciudad "<ciudad>"
+6. Corre la primera búsqueda en el perfil: python tools/pe_pipeline.py diario
+   Tarda de 5 a 15 minutos. Si un portal falla, sigue con los demás y dime cuál.
+7. Evalúa las ofertas nuevas: /rank en Claude Code, o siguiendo .claude/commands/rank.md. Después corre
+   python tools/pe_pipeline.py actualizar y ábreme reports/revision-ofertas.html.
+8. Pregúntame si quiero que busque sola todos los días y a qué hora (hora de Perú). Si digo que sí:
+   python tools/pe_pipeline.py programar --hora "<hora>"
+
+Reglas: usa siempre el Python de .venv; no agregues paquetes ni cambies versiones; no hagas git push ni subas
+nada; no postules ni envíes nada a ninguna empresa; no borres reports/busqueda/linkedin-control.json.
+Al terminar, dime qué quedó listo, qué comandos corriste y qué falló, con el mensaje de error exacto.
+```
+
+**Si se corta** (cierras el agente, se acaba la sesión, falla un paso): vuelve a abrirlo en la misma carpeta y pídele «sigue con el prompt de la forma 3 del README desde donde quedamos». Cada paso salta lo que ya está hecho, igual que en la forma 1.
 
 ## El flujo, paso a paso
 
