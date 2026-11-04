@@ -6,7 +6,11 @@
 set -eu
 cd "$(dirname "$0")"
 VENV="${VENV:-.venv}"
+STEP=0 NAME=""
+paso() { STEP=$((STEP + 1)) NAME="$1"; echo; echo "  ($STEP/3) $NAME"; }
+trap 'echo; echo "ERROR en ($STEP/3) $NAME. Lee el mensaje de arriba, corrige y vuelve a correr: bash instalar_basico.sh" >&2' ERR
 
+paso "buscar Python"
 python=""
 for cmd in python3 python py; do
   # The Windows Store alias answers "python" without being Python: ask it to run code.
@@ -21,6 +25,7 @@ if [ -z "$python" ]; then
 fi
 echo "Python: $("$python" --version)"
 
+paso "librerías de Python en $VENV (1 a 3 minutos la primera vez)"
 [ -d "$VENV" ] || "$python" -m venv "$VENV"
 venv_python="$VENV/bin/python"
 [ -x "$venv_python" ] || venv_python="$VENV/Scripts/python.exe"
@@ -28,6 +33,7 @@ venv_python="$VENV/bin/python"
 "$venv_python" -m pip install --disable-pip-version-check -q -r requirements.txt
 echo "Librerías de Python instaladas en $VENV (versiones de requirements.txt)"
 
+paso "buscadores de portales (Bun)"
 if command -v bun >/dev/null 2>&1; then
   "$venv_python" tools/install_portal_clis.py
 else

@@ -44,6 +44,63 @@ ROOT = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("pe_frescura", ROOT / "tools" / "pe_frescura.py")
 pe_frescura = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pe_frescura)
+_spec = importlib.util.spec_from_file_location("pe_sueldo", ROOT / "tools" / "pe_sueldo.py")
+pe_sueldo = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(pe_sueldo)
+
+# Position levels in the shared vocabulary (10-peru-market.md, "Nivel del puesto"), in career order.
+LEVELS = ["práctica preprofesional", "práctica profesional", "práctica", "pasantía", "programa de extensión",
+          "trainee", "asistente de investigación", "asistente", "analista", "asociado", "junior"]
+INTERN_LEVELS = {"práctica preprofesional", "práctica profesional", "práctica", "pasantía", "programa de extensión"}
+
+# Employer sector, folded into fixed groups so "Banca / Financiera", "banca y finanzas" and
+# "Banking and Financial Services" are one filter. Matched on the sector label and the company
+# name (never the title: "Practicante de Finanzas" at a mine is mining). First match wins.
+SECTOR_GROUPS = [
+    ("Sector público", r"ministerio|municipalidad|gobierno regional|superintendencia|banco central de reserva|\bbcrp\b"
+                       r"|\bsunat\b|\bsbs\b|\bindecopi\b|\bosinergmin\b|\bosiptel\b|\bsunass\b|\bproinversion\b|poder judicial"
+                       r"|\bseguro social\b|\bessalud\b|organismo|\bentidad publica\b|administracion publica"),
+    ("Banca de inversión", r"investment bank|banca de inversion|corporate finance|finanzas corporativas|\bm&a\b"
+                           r"|capital markets|mercado de capitales|\badvisors?\b|\bbtg\b|jp ?morgan|goldman|lazard|moelis"),
+    ("Fondos e inversiones", r"asset management|administradora de fondos|fondos? de inversion|private equity|venture capital"
+                             r"|wealth|sociedad agente de bolsa|\bsab\b|bolsa de valores|credicorp capital|\binversiones\b"
+                             r"|investment management"),
+    ("AFP y pensiones", r"pension|\bafp\b|prima afp|\bintegra\b|profuturo|\bhabitat\b"),
+    ("Seguros", r"segur|insurance|reasegur|\brimac\b|pacifico|mapfre|la positiva|interseguro|\bchubb\b"),
+    ("Fintech", r"fintech|\bpagos\b|payments?|\byape\b|culqi|niubiz|izipay|billetera"),
+    ("Banca y microfinanzas", r"\bbanc|\bbank|financier|financial services|caja municipal|\bcmac\b|cooperativa de ahorro"
+                              r"|microfinan|edpyme|\bbcp\b|interbank|\bbbva\b|scotiabank|mibanco|credicorp|\bcredito\b"),
+    ("Inmobiliario y construcción", r"inmobiliar|real estate|bienes raices|construc|edificacion|activos inmobiliarios"),
+    ("RR. HH. y selección", r"rrhh|recursos humanos|seleccion|de personal|staffing|manpower|adecco|randstad|outsourcing"),
+    ("Consultoría y auditoría", r"consultor|consulting|auditor|professional services|deloitte|\bpwc\b|\bkpmg\b|\bey\b"
+                                r"|\bapoyo\b|\basesor|estudio de abogados|legal services"),
+    ("Retail y consumo", r"retail|consumo masivo|supermercad|tiendas|ripley|saga|oechsle|\bplaza vea\b|belcorp|alicorp"
+                         r"|backus|gloria|cosmetic|alimentos|bebidas|restaurant|food|beverage|textil|\bmoda\b"),
+    ("Energía y minería", r"energ|miner|mining|petrol|\bgas\b|electric|hidrocarb|\boil\b"),
+    ("Telecom y tecnología", r"telecom|tecnolog|software|information technology|\bit services\b|\bclaro\b|america movil"
+                             r"|\bentel\b|movistar|telefonica"),
+    ("Investigación y academia", r"universi|research|investigacion|innovations for poverty|\bipa\b|think tank|\bgrade\b"
+                                 r"|center for|centre for|instituto de estudios|growth center|academ|education|educacion"),
+    ("Salud", r"salud|health|clinica|hospital|farmac|laboratorio"),
+    ("Logística y transporte", r"logistic|transporte|transport|distribucion|courier|aerolinea|naviera|vehiculos|automotriz"),
+]
+FINANCE_GROUPS = {"Banca de inversión", "Fondos e inversiones", "AFP y pensiones", "Seguros", "Fintech",
+                  "Banca y microfinanzas"}
+
+
+def _fold(text: str) -> str:
+    folded = unicodedata.normalize("NFKD", (text or "").lower())
+    return "".join(c for c in folded if not unicodedata.combining(c))
+
+
+def sector_group(r: dict) -> str:
+    """The fixed sector group of a posting, from its sector label and company; "Otros" when unsure."""
+    if str(r.get("portal") or "").startswith("talento-peru"):
+        return "Sector público"
+    label = ((r.get("context") or {}).get("rubro") or {}).get("label") or ""
+    text = _fold(f"{label} | {r.get('company') or ''}")
+    return next((group for group, pattern in SECTOR_GROUPS if re.search(pattern, text)), "Otros")
+
 
 SHORTLIST = ("Strong Fit", "Good Fit")
 ACTIONS = [  # (key, label, css class) in priority order
@@ -452,6 +509,9 @@ def salary_of(r: dict, salaries: dict[str, dict]) -> tuple[str, str]:
     if best:
         (_, count), role, cat = best
         return str(cat.get("index")), f"estimado MyWorkIn · {role} · {count} aporte{'s' if count != 1 else ''}"
+    if r.get("level") in INTERN_LEVELS or "practicante" in title:
+        return (f"desde S/ {fmt_es(pe_sueldo.PARAMS['rmv'])}",
+                "mínimo legal de la subvención de prácticas a jornada completa (una RMV); el aviso no lo indica")
     return "Sin dato", "el aviso no lo indica"
 
 
@@ -875,6 +935,10 @@ h2{font-size:18px;line-height:1.3}
 .role-filter>span{font-size:12px;font-weight:600;color:var(--dim)}
 .role-filter .quick button{min-height:40px;padding:7px 14px}
 .role-filter .quick button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.role-filter>span{min-width:96px}
+.co2{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px;font-size:11.5px}
+.co2 .grp{color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:0 7px}
+.co2 .pay{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
 .role-filter .quick small{font-size:11px;margin-left:5px;opacity:.8;font-variant-numeric:tabular-nums}
 .side fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
 .side legend{font-size:12px;font-weight:600;color:var(--ink-2);padding:0;margin-bottom:6px}
@@ -1125,6 +1189,7 @@ JS = """
   var tot=document.getElementById('tot'),empty=document.getElementById('empty'),emptyState=document.getElementById('empty-state');
   var roleButtons=Array.prototype.slice.call(document.querySelectorAll('[data-role-filter]'));
   var role=track.dataset.initialFocus||'';
+  var chipSel={nivel:'',rubro:''},chipButtons=Array.prototype.slice.call(document.querySelectorAll('[data-chip]'));
   if(role&&role!=='estado'&&!cards.some(function(c){return c.dataset.roles.split('|').indexOf(role)>=0;}))role='';
 
   // "Revisada": a per-browser convenience, never written back to the state files.
@@ -1166,6 +1231,8 @@ JS = """
         &&(!fsector.value||c.dataset.sector===fsector.value)
         &&(!fkind.value||c.dataset.kinds.split('|').indexOf(fkind.value)>=0)
         &&(!role||c.dataset.roles.split('|').indexOf(role)>=0)
+        &&(!chipSel.nivel||c.dataset.nivel===chipSel.nivel)
+        &&(!chipSel.rubro||c.dataset.rubros.split('|').indexOf(chipSel.rubro)>=0)
         &&closeOk(c.dataset.close)&&doneOk(c)
         &&(fx.checked||c.dataset.excl!=='1');
       c.hidden=!ok;if(ok)shown++;
@@ -1174,6 +1241,7 @@ JS = """
     if(emptyState)emptyState.hidden=shown>0||role!=='estado';
     document.querySelectorAll('[data-quick-action]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.quickAction===fa.value));});
     roleButtons.forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.roleFilter===role));});
+    chipButtons.forEach(function(b){b.setAttribute('aria-pressed',String(chipSel[b.dataset.chip]===b.dataset.value));});
   }
   var heads=Array.prototype.slice.call(document.querySelectorAll('button.colsort'));
   function sort(){
@@ -1190,6 +1258,7 @@ JS = """
   mods.forEach(function(m){m.addEventListener('change',apply);});
   document.querySelectorAll('[data-quick-action]').forEach(function(b){b.addEventListener('click',function(){fa.value=b.dataset.quickAction;apply();});});
   roleButtons.forEach(function(b){b.addEventListener('click',function(){role=b.dataset.roleFilter;apply();});});
+  chipButtons.forEach(function(b){b.addEventListener('click',function(){chipSel[b.dataset.chip]=b.dataset.value;apply();});});
   document.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('button[data-set-filter]');if(!b)return;
     var sel={district:fdistrict,sector:fsector,kind:fkind,zone:fz}[b.dataset.setFilter];
@@ -1209,7 +1278,7 @@ JS = """
   document.querySelectorAll('[data-goto]').forEach(function(b){
     b.addEventListener('click',function(){
       var card=cards.filter(function(c){return c.dataset.key===b.dataset.goto;})[0];if(!card)return;
-      if(card.hidden){controls.forEach(function(el){el.value='';});mods.forEach(function(m){m.checked=true;});role='';apply();}
+      if(card.hidden){controls.forEach(function(el){el.value='';});mods.forEach(function(m){m.checked=true;});role='';chipSel={nivel:'',rubro:''};apply();}
       var d=card.querySelector('details');if(d)d.open=true;
       card.scrollIntoView({behavior:'smooth',block:'start'});
     });
@@ -1293,6 +1362,13 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
              (known[pe_frescura.posting_id(p)].get("status") == "new" and
               known[pe_frescura.posting_id(p)].get("fit") is None)) and not p.get("already_applied")]
     applied = [p for p in report["nuevas"] if isinstance(p, dict) and p.get("already_applied")]
+    # Registered by an earlier search and still not evaluated: a newer search must not hide them.
+    listed = {pe_frescura.posting_id(p) for p in rows}
+    rows += [{"title": e.get("title"), "company": e.get("company"), "url": e.get("url"), "location": e.get("location"),
+              "date": e.get("posted_date") or e.get("first_seen"), "deadline": e.get("deadline"), "ref": e.get("ref"),
+              "portal": re.sub(r"-search$", "", str(e.get("portal") or "?")), "query": "búsqueda anterior"}
+             for pid, e in known.items()
+             if e.get("status") == "new" and e.get("fit") is None and pid not in listed]
     if not rows:
         return ""
     portals = sorted({p.get("portal") or "?" for p in rows})
@@ -1319,7 +1395,7 @@ def nuevas_html(report: dict | None, seen: dict) -> str:
             f'<td>{esc((p.get("portal") or "?").replace("-", " "))}</td><td class="dim">{esc(p.get("query") or "")}</td></tr>')
     portal_opts = "".join(f'<option value="{esc(x)}">{esc(x.replace("-", " "))}</option>' for x in portals)
     query_opts = "".join(f'<option value="{esc(x)}">{esc(x)}</option>' for x in queries)
-    return (f'<details class="nuevas"><summary>Nuevas de la última búsqueda, sin evaluar ({len(rows)}) · '
+    return (f'<details class="nuevas"><summary>Nuevas sin evaluar ({len(rows)}) · última búsqueda '
             f'{esc(report.get("generated") or "—")}</summary>'
             '<p class="fine">Lo que trajo <code>python tools/pe_pipeline.py buscar</code> y aún no pasa por <code>/rank</code>: '
             'sin encaje, frescura ni lugar verificados. Solo para darles una mirada.</p>'
@@ -1417,7 +1493,12 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
     close_cell = (f'<span class="close {esc(closes["css"])}" title="Fecha de cierre que escribe la oferta">{esc(closes["label"])}</span>'
                   if closes["bucket"] != "sin" else '<span class="nodate">Sin fecha</span>')
     level_txt = r.get("level") if r.get("level") and r.get("level") != "no declarado" else ""
-    how = f'<div class="how"><b>Cómo:</b> {esc(r["how_to_apply"])}</div>' if r.get("how_to_apply") else ""
+    group = sector_group(r)
+    rubros = "|".join([group] + (["Finanzas"] if group in FINANCE_GROUPS else []))
+    pay, pay_note = r.get("sueldo") or ("Sin dato", "")
+    pay_txt = (f'<span class="pay" title="{esc(pay_note)}">{esc(pay if pay.startswith("desde") else "S/ " + pay if pay[:1].isdigit() else pay)}'
+               f'{" · aprox." if pay_note.startswith(("estimado", "mínimo")) else ""}</span>') if pay != "Sin dato" else ""
+    how =f'<div class="how"><b>Cómo:</b> {esc(r["how_to_apply"])}</div>' if r.get("how_to_apply") else ""
     applied = (f'<div class="how"><b>Postulación registrada</b>'
                f'{" · " + esc(r.get("applied_date")) if r.get("applied_date") else ""}</div>'
                if r["action"] == "postulada" else "")
@@ -1430,12 +1511,14 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
         f'data-action="{esc(r["action"])}" data-modality="{esc(r.get("modality"))}" data-fresh="{esc(level)}" '
         f'data-close="{esc(closes["bucket"])}" data-zones="{esc(zones)}" data-districts="{esc(districts)}" '
         f'data-sector="{esc(rb.get("label"))}" data-kinds="{esc(kinds)}" data-roles="{esc("|".join(role_tags(r)))}" data-text="{esc(text)}" '
+        f'data-nivel="{esc(level_txt)}" data-rubros="{esc(rubros)}" '
         f'data-excl="{"1" if r.get("abroad_excluded") else ""}" {sort_attrs}>'
         f'<details class="rowd"><summary class="row">'
         f'<span class="sc" title="Encaje: puntaje de /rank sobre 100 · {esc(r.get("rank_verdict"))}"><b>{esc(score if score is not None else "—")}</b>'
         f'<span class="bar"><i style="width:{esc(pct)}%"></i></span></span>'
         f'<span class="who">{logo_html(r, classes)}<span class="tt"><span class="t">{esc(r.get("title"))}</span>'
-        f'<span class="co">{esc(r.get("company"))}{" · " + esc(level_txt) if level_txt else ""}</span></span></span>'
+        f'<span class="co">{esc(r.get("company"))}{" · " + esc(level_txt) if level_txt else ""}</span>'
+        f'<span class="co2"><span class="grp">{esc(group)}</span>{pay_txt}</span></span></span>'
         f'<span class="tags"><span class="c-mod">{esc(modality.capitalize())}</span>'
         f'<span class="c-close">{close_cell}</span>'
         f'<span class="c-fresh" title="Frescura de la vacante"><i class="dot {FRESH_CSS.get(level, "")}"></i>{esc(fresh_txt)}</span>'
@@ -1601,6 +1684,21 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     pending_servir = sum(1 for p in ((data.get("nuevas") or {}).get("nuevas") or [])
                          if isinstance(p, dict) and p.get("portal") == "talento-peru"
                          and pe_frescura.posting_id(p) not in known_ids)
+    def chip_row(name: str, label: str, items: list[tuple[str, str, int, str]]) -> str:
+        if len(items) < 2:
+            return ""
+        buttons = "".join(f'<button type="button" data-chip="{name}" data-value="{esc(v)}" aria-pressed="{str(not v).lower()}"'
+                          + (f' title="{esc(tip)}"' if tip else "") + f'>{esc(text)}<small>{n}</small></button>'
+                          for v, text, n, tip in [("", "Todos", len(main_rows), "")] + items)
+        return (f'<div class="role-filter" role="group" aria-label="Filtrar por {esc(label.lower())}">'
+                f'<span>{esc(label)}</span><div class="quick">{buttons}</div></div>')
+    by_level = Counter(r.get("level") for r in main_rows)
+    level_tips = {"práctica preprofesional": "Estudiantes: la primera práctica", "práctica profesional": "Egresados, hasta 12 meses después de egresar"}
+    chip_levels = chip_row("nivel", "Nivel", [(lv, lv.capitalize(), by_level[lv], level_tips.get(lv, "")) for lv in LEVELS if by_level[lv]])
+    by_group = Counter(sector_group(r) for r in main_rows)
+    finance = sum(by_group[g] for g in FINANCE_GROUPS)
+    chip_groups = chip_row("rubro", "Rubro", ([("Finanzas", "Finanzas (todo)", finance, " · ".join(sorted(FINANCE_GROUPS)))] if finance else [])
+                           + [(g, g, n, "") for g, n in sorted(by_group.items(), key=lambda kv: (kv[0] == "Otros", -kv[1], kv[0]))])
     role_buttons = ('<button type="button" data-role-filter="" aria-pressed="true">Todos'
                     f'<small>{len(main_rows)}</small></button>'
                     + "".join(f'<button type="button" data-role-filter="{key}" aria-pressed="false">{label}'
@@ -1711,6 +1809,8 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 </aside>
 <div class="listcol">
 <div class="role-filter" role="group" aria-label="Filtrar por tipo de puesto"><span>Tipo de puesto</span><div class="quick">{role_buttons}</div></div>
+{chip_levels}
+{chip_groups}
 {f'<p class="note"><a href="#sec-cerradas" data-open="sec-cerradas">Ver {len(closed_public)} {"convocatoria pública cerrada" if len(closed_public) == 1 else "convocatorias públicas cerradas"}</a></p>' if closed_public else ''}
 <div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
 <div class="list-tools"><label>Orden <select id="so">{sort_opts}</select></label></div></div>

@@ -98,7 +98,7 @@ Los pasos 2 y 4 a 6 se pueden hacer con un solo comando (recomendado), después 
 bash instalar_full.sh
 ```
 
-`instalar_full.sh` instala lo que falte de Python, Bun y LaTeX (con `winget`, Homebrew o `apt`) y luego corre `instalar_basico.sh`, que crea `.venv`, instala `requirements.txt` y los buscadores. Si ya tienes los programas, basta con `bash instalar_basico.sh`: no instala programas del sistema; si falta Python, muestra el comando y se detiene. Se puede repetir sin riesgo, por ejemplo después de un `git pull`. La activación del paso 5 sigue haciendo falta en cada terminal nueva.
+`instalar_full.sh` instala lo que falte de Python, Bun y LaTeX (con `winget`, Homebrew o `apt`) y luego corre `instalar_basico.sh`, que crea `.venv`, instala `requirements.txt` y los buscadores. Córrelo como usuario normal, no como administrador. Muestra el avance paso a paso, guarda todo en `instalar.log` y, si algo falla, dice en qué paso: corrige y vuelve a correrlo. Si ya tienes los programas, basta con `bash instalar_basico.sh`: no instala programas del sistema; si falta Python, muestra el comando y se detiene. Se puede repetir sin riesgo, por ejemplo después de un `git pull`. La activación del paso 5 sigue haciendo falta en cada terminal nueva.
 
 ## 7. Perfil
 

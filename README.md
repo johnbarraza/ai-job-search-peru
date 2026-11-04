@@ -44,7 +44,7 @@ Herramientas para buscar ofertas en portales peruanos, revisar requisitos, prepa
 | **[Bun](https://bun.sh)** | Buscadores de LinkedIn, Bumeran, Computrabajo y Get on Board | Sí, para esos portales |
 | **LaTeX** con `lualatex` y `xelatex` ([MiKTeX](https://miktex.org/), [TeX Live](https://tug.org/texlive/), [MacTeX](https://tug.org/mactex/)) | Compilar CV y cartas a PDF | Solo si generas CV |
 | **Google Chrome** | Bolsa UP (inicias sesión tú) | Solo para la Bolsa UP |
-| **Un agente:** [Claude Code](https://claude.com/claude-code), Codex o [Antigravity CLI](https://antigravity.google/docs/cli/headless) | `/setup`, `/rank`, `/apply`, `/interview` | No. Cada uno pide su propia suscripción o créditos de API |
+| **Un agente:** Claude Code, Codex o Antigravity CLI ([cómo instalarlos](docs/AGENTES_IA.md)) | `/setup`, `/rank`, `/apply`, `/interview` | No. Cada uno pide su propia cuenta o plan |
 
 **Instalar Git:** Windows `winget install --id Git.Git -e` (o el instalador de [git-scm.com](https://git-scm.com/)) · Mac `xcode-select --install` · Linux `sudo apt install git`. Cierra y abre la terminal, y comprueba con `git --version`. Git hace falta también con el ZIP: los perfiles, el hook de privacidad y `git pull` dependen de él.
 
@@ -91,6 +91,8 @@ bash instalar_full.sh
 ```
 
 - **`instalar_full.sh`** instala lo que falte de Python, Bun y LaTeX (con `winget` en Windows, Homebrew en Mac, `apt` en Linux) y luego corre el básico. LaTeX ocupa varios GB; en Mac pide tu contraseña.
+- **Ábrelo como usuario normal, no como administrador.** Instala para tu usuario; si un programa necesita permiso, Windows lo pide en una ventana. Muestra el avance (`[###--] paso 3 de 5`) y guarda todo en `instalar.log`.
+- **Si falla**, dice en qué paso y por qué. Corrige eso y vuelve a correrlo: salta lo que ya quedó instalado.
 - **`instalar_basico.sh`** solo crea `.venv`, instala las librerías con versión fija y los buscadores. Úsalo si ya tienes los programas, o después de un `git pull`.
 
 Ambos se pueden repetir sin riesgo.
@@ -379,6 +381,7 @@ ai-job-search-peru/
 | Documento | Contenido |
 |---|---|
 | [docs/INSTALAR.md](docs/INSTALAR.md) | Instalación desde cero, uso diario, errores frecuentes |
+| [docs/AGENTES_IA.md](docs/AGENTES_IA.md) | Instalar Claude Code, Antigravity CLI (`agy`) o Codex, iniciar sesión y primer uso |
 | [docs/PIPELINE.md](docs/PIPELINE.md) | Cada comando de `pe_pipeline.py`, sus opciones y archivos |
 | [docs/PORTALES.md](docs/PORTALES.md) | Cobertura y límites de cada fuente |
 | [docs/SYMPLICITY.md](docs/SYMPLICITY.md) | Bolsa UP: sesión, búsqueda, CV y solicitudes |

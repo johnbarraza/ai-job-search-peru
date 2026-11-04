@@ -1,9 +1,22 @@
 #!/usr/bin/env bash
 # Instalación completa (recomendada): instala lo que falte de Python, Bun y LaTeX, y luego corre instalar_basico.sh.
 # Windows (Git Bash, usa winget), macOS (usa Homebrew) y Linux (usa apt):  bash instalar_full.sh
-# Solo instala lo que falta. Se puede repetir sin riesgo. Git ya debe estar: en Windows trae el Git Bash que corre esto.
+# No lo corras como administrador: instala para tu usuario y, si un programa necesita permiso, Windows lo pide en una ventana.
+# Solo instala lo que falta, así que se puede repetir sin riesgo: si algo falla, corrige y vuelve a correrlo.
+# Todo lo que muestra queda también en instalar.log.
 set -eu
 cd "$(dirname "$0")"
+exec > >(tee -a instalar.log) 2>&1
+echo "== $(date '+%d/%m/%Y %H:%M') · instalar_full.sh =="
+
+TOTAL=5 STEP=0 NAME=""
+paso() {
+  STEP=$((STEP + 1)) NAME="$1"
+  bar=$(printf '%*s' "$STEP" '' | tr ' ' '#')$(printf '%*s' $((TOTAL - STEP)) '' | tr ' ' '-')
+  echo; echo "[$bar] paso $STEP de $TOTAL: $NAME"
+}
+trap 'echo; echo "ERROR en el paso $STEP de $TOTAL ($NAME). El detalle está arriba y en instalar.log." >&2
+      echo "Corrige lo que dice y vuelve a correr: bash instalar_full.sh (salta lo que ya quedó instalado)." >&2' ERR
 
 has_python() {
   for cmd in python3 python py; do
@@ -12,44 +25,57 @@ has_python() {
   done
   return 1
 }
-missing() { command -v "$1" >/dev/null 2>&1 && return 1 || return 0; }
+missing() { ! command -v "$1" >/dev/null 2>&1; }
+ya() { echo "  ya está: $1"; }
 
+paso "revisar el sistema"
 case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*)
-    missing winget && { echo "Falta winget (App Installer de la Microsoft Store). Instálalo y repite: bash instalar_full.sh" >&2; exit 1; }
-    get() { echo "Instalando $1..."; winget install --id "$1" -e --silent --accept-package-agreements --accept-source-agreements || true; }
-    has_python || get Python.Python.3.12
-    missing bun && get Oven-sh.Bun
-    if missing lualatex; then get MiKTeX.MiKTeX; fi
-    # This shell does not see the new PATH until it is reopened: add the usual install folders by hand.
-    local_app="$(cygpath -u "${LOCALAPPDATA:-$HOME/AppData/Local}")"
-    export PATH="$local_app/Programs/Python/Python312:$local_app/Programs/Python/Python312/Scripts:/c/Program Files/Python312:$local_app/Microsoft/WinGet/Links:$HOME/.bun/bin:$local_app/Programs/MiKTeX/miktex/bin/x64:/c/Program Files/MiKTeX/miktex/bin/x64:$PATH"
-    # MiKTeX asks in a window for each missing package; let it fetch them without asking.
-    command -v initexmf >/dev/null 2>&1 && initexmf --set-config-value '[MPM]AutoInstall=1' >/dev/null 2>&1 || true
-    ;;
-  Darwin)
-    if missing brew; then
-      echo "Falta Homebrew. Instálalo con el comando de https://brew.sh y repite: bash instalar_full.sh" >&2; exit 1
-    fi
-    has_python || brew install python@3.12
-    missing bun && brew install oven-sh/bun/bun
-    missing lualatex && [ ! -x /Library/TeX/texbin/lualatex ] && brew install --cask mactex-no-gui  # pide tu contraseña
-    export PATH="$(brew --prefix)/bin:/Library/TeX/texbin:$PATH"
-    ;;
-  *)
-    if missing apt-get; then
-      echo "Este script instala con apt (Debian/Ubuntu). En otra distribución instala Python 3.10+, Bun y TeX Live (luatex, xetex) y corre: bash instalar_basico.sh" >&2; exit 1
-    fi
-    pkgs=""
-    has_python || pkgs="python3 python3-pip"
-    pkgs="$pkgs python3-venv curl unzip"
-    missing lualatex && pkgs="$pkgs texlive-luatex texlive-xetex texlive-latex-extra texlive-fonts-extra"
-    sudo apt-get update && sudo apt-get install -y $pkgs
-    missing bun && [ ! -x "$HOME/.bun/bin/bun" ] && curl -fsSL https://bun.sh/install | bash
-    export PATH="$HOME/.bun/bin:$PATH"
-    ;;
+  MINGW*|MSYS*|CYGWIN*) os=windows ;;
+  Darwin) os=mac ;;
+  *) os=linux ;;
 esac
+echo "  sistema: $os"
+if [ "$os" = windows ]; then
+  missing winget && { echo "Falta winget (App Installer de la Microsoft Store). Instálalo y repite." >&2; false; }
+  get() { echo "  instalando $1 (puede tardar varios minutos)..."; winget install --id "$1" -e --silent --accept-package-agreements --accept-source-agreements || true; }
+  # This shell does not see a new PATH until it is reopened: add the usual install folders by hand.
+  local_app="$(cygpath -u "${LOCALAPPDATA:-$HOME/AppData/Local}")"
+  export PATH="$local_app/Programs/Python/Python312:$local_app/Programs/Python/Python312/Scripts:/c/Program Files/Python312:$local_app/Microsoft/WinGet/Links:$HOME/.bun/bin:$local_app/Programs/MiKTeX/miktex/bin/x64:/c/Program Files/MiKTeX/miktex/bin/x64:$PATH"
+elif [ "$os" = mac ]; then
+  missing brew && { echo "Falta Homebrew. Instálalo con el comando de https://brew.sh y repite." >&2; false; }
+  export PATH="$(brew --prefix)/bin:/Library/TeX/texbin:$PATH"
+else
+  missing apt-get && { echo "Este script instala con apt (Debian/Ubuntu). En otra distribución instala Python 3.10+, Bun y TeX Live (luatex, xetex) y corre: bash instalar_basico.sh" >&2; false; }
+  sudo apt-get update -qq
+  export PATH="$HOME/.bun/bin:$PATH"
+fi
 
-missing bun && echo "Aviso: Bun no quedó instalado; abre una terminal nueva y repite: bash instalar_full.sh" >&2
-missing lualatex && echo "Aviso: LaTeX no quedó instalado; abre una terminal nueva y repite: bash instalar_full.sh" >&2
-exec bash instalar_basico.sh
+paso "Python 3.10 o más nuevo"
+if has_python; then ya "Python"
+elif [ "$os" = windows ]; then get Python.Python.3.12
+elif [ "$os" = mac ]; then brew install python@3.12
+else sudo apt-get install -y python3 python3-pip python3-venv
+fi
+[ "$os" = linux ] && sudo apt-get install -y -qq python3-venv curl unzip
+
+paso "Bun (buscadores de LinkedIn, Bumeran, Computrabajo y Get on Board)"
+if ! missing bun; then ya "Bun"
+elif [ "$os" = windows ]; then get Oven-sh.Bun
+elif [ "$os" = mac ]; then brew install oven-sh/bun/bun
+else curl -fsSL https://bun.sh/install | bash
+fi
+
+paso "LaTeX (para los CV en PDF; es lo más pesado, varios GB)"
+if ! missing lualatex; then ya "LaTeX"
+elif [ "$os" = windows ]; then get MiKTeX.MiKTeX
+elif [ "$os" = mac ]; then echo "  macOS pedirá tu contraseña"; brew install --cask mactex-no-gui
+else sudo apt-get install -y texlive-luatex texlive-xetex texlive-latex-extra texlive-fonts-extra
+fi
+# MiKTeX asks in a window for each missing package; let it fetch them without asking.
+if [ "$os" = windows ] && ! missing initexmf; then initexmf --set-config-value '[MPM]AutoInstall=1' >/dev/null 2>&1 || true; fi
+
+paso "entorno de Python y buscadores (instalar_basico.sh)"
+missing bun && echo "  Aviso: Bun aún no aparece; si acabas de instalarlo, abre una terminal nueva y repite." >&2
+missing lualatex && echo "  Aviso: LaTeX aún no aparece; si acabas de instalarlo, abre una terminal nueva y repite." >&2
+trap - ERR
+bash instalar_basico.sh

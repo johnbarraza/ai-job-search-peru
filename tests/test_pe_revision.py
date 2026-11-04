@@ -647,5 +647,39 @@ class NewFromLastSearch(unittest.TestCase):
         self.assertIn(f'<a href="{direct}" target="_blank" rel="noopener noreferrer">Especialista</a>', html)
 
 
+class EarlierUnrankedStayListed(unittest.TestCase):
+    def test_a_newer_search_does_not_hide_postings_registered_by_an_earlier_one(self):
+        seen = {"a": {"title": "Practicante SERVIR", "company": "MEF", "url": "https://x.pe/a", "status": "new",
+                      "fit": None, "portal": "talento-peru", "first_seen": "2026-10-24"},
+                "b": {"title": "Ya evaluada", "url": "https://x.pe/b", "status": "ranked", "fit": "high"}}
+        html = pr.nuevas_html({"generated": "2026-10-30", "nuevas": [{"title": "De hoy", "url": "https://x.pe/c"}]}, seen)
+        self.assertIn("Nuevas sin evaluar (2)", html)
+        self.assertIn("Practicante SERVIR", html)
+        self.assertNotIn("Ya evaluada", html)
+
+
+class SectorGroupsAndPayFloor(unittest.TestCase):
+    def group(self, label, company="", portal=""):
+        return pr.sector_group({"company": company, "portal": portal, "context": {"rubro": {"label": label}}})
+
+    def test_spellings_of_one_sector_fold_into_one_group(self):
+        for label in ("Banca / Financiera", "banca y finanzas", "Banking and Financial Services"):
+            self.assertEqual(self.group(label), "Banca y microfinanzas", label)
+        self.assertEqual(self.group("Investment Banking, Financial Services, and Investment Management"), "Banca de inversión")
+        self.assertEqual(self.group(None, "MAPFRE PERU COMPAÑIA DE SEGUROS"), "Seguros")
+        self.assertEqual(self.group("desarrollo y administración de activos inmobiliarios"), "Inmobiliario y construcción")
+        # The central bank and the banking regulator are public employers, not banks.
+        self.assertEqual(self.group(None, "Banco Central de Reserva del Perú"), "Sector público")
+        self.assertEqual(self.group("Gobierno", "", "talento-peru"), "Sector público")
+        self.assertEqual(self.group(None, "Human Agentic Frontier Foundry SAC"), "Otros")
+
+    def test_internship_without_stated_pay_shows_the_legal_floor_as_approximate(self):
+        value, note = pr.salary_of({"title": "Practicante de Riesgos", "level": "práctica preprofesional"}, {})
+        self.assertEqual(value, f"desde S/ {pr.fmt_es(pr.pe_sueldo.PARAMS['rmv'])}")
+        self.assertTrue(note.startswith("mínimo legal"))
+        self.assertEqual(pr.salary_of({"title": "Analista de Riesgos", "level": "analista"}, {})[0], "Sin dato")
+        self.assertEqual(pr.salary_of({"title": "Practicante", "salary": "S/ 1,500"}, {})[1], "según el aviso")
+
+
 if __name__ == "__main__":
     unittest.main()

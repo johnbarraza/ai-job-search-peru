@@ -4,3 +4,4 @@
 -r tools/requirements-servir.txt
 -r tools/requirements-symplicity.txt
 -r tools/requirements-pdf.txt
+-r tools/requirements-logos.txt

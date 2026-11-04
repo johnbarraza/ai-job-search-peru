@@ -1,0 +1,2 @@
+# Employer logos for the review page: tools/pe_logos.py decodes and re-encodes each image as a small PNG.
+pillow==13.0.0
