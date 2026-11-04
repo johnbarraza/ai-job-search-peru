@@ -30,27 +30,28 @@ def section(text: str, heading: str) -> str:
 
 
 class TestForkWarningsAtTheDecisionPoint(unittest.TestCase):
-    def assert_warns(self, body: str, where: str):
+    def assert_warns(self, body: str, where: str, public=r"public", personal="personal data"):
         self.assertRegex(
             body,
-            re.compile(r"public", re.IGNORECASE),
+            re.compile(public, re.IGNORECASE),
             f"{where}'s fork section must say the fork will be public",
         )
         self.assertIn(
-            "personal data",
+            personal,
             body,
             f"{where}'s fork section must say /setup writes personal data into tracked files",
         )
         self.assertRegex(
             body,
-            re.compile(r"section 8|§8|#8-pulling", re.IGNORECASE),
+            re.compile(r"section 8|sección 8|§8|#8-pulling", re.IGNORECASE),
             f"{where}'s fork section must point at SETUP.md section 8's private-remote recipe",
         )
 
     def test_readme_quick_start_warns_next_to_the_fork_command(self):
-        body = section(README.read_text(encoding="utf-8"), "### 1. Fork and clone")
+        # Peru fork: the README is in Spanish; the quick start's first step is "Descargar".
+        body = section(README.read_text(encoding="utf-8"), "### 1. Descargar")
         self.assertIn("gh repo fork", body, "sanity: the fork command lives in this section")
-        self.assert_warns(body, "README")
+        self.assert_warns(body, "README", public=r"público", personal="datos personales")
 
     def test_setup_guide_warns_next_to_the_fork_command(self):
         body = section(SETUP_GUIDE.read_text(encoding="utf-8"), "## 2. Fork and clone")
