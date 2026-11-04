@@ -87,9 +87,11 @@ python tools/pe_lexico.py rank --todas              # repuntúa también las que
 python tools/pe_pipeline.py programar --hora "8:00 am" --ia lexico
 ```
 
-Cada oferta suma hasta 100 por palabras de su título, empresa y descripción: área (40), herramientas que pide (20), nivel frente a tu etapa y experiencia (20), inglés (10) y sector (10). Lo que la ficha no cumple (ciclo, mérito, ser egresado, nivel de inglés) no se esconde en el número: deja la oferta en «Confirmar antes» con la nota. Guarda los mismos campos que `/rank` y `rank_method: lexico`; la página lo marca «sin IA» y nunca la descarta sola (las de puntaje bajo van a «Si hay tiempo»). Si luego tienes IA, `/rank` puede volver a puntuarlas.
+Cada oferta suma hasta 100 por palabras de su título, empresa y descripción, y solo cuentan dos cosas: el área (60) y el nivel frente a tu etapa, ciclo y experiencia (40). El inglés y las herramientas se muestran como aviso, pero no bajan el puntaje: suelen ser deseables y se aprenden. Lo que la ficha no cumple de forma explícita (ciclo, ser egresado, mérito) deja la oferta en «Confirmar antes» con la nota. Guarda los mismos campos que `/rank` y `rank_method: lexico`; la página lo marca «sin IA», muestra arriba sus límites y nunca descarta una oferta por ese puntaje. Si luego tienes IA, `/rank` puede volver a puntuarlas.
 
-Limitaciones: lee palabras, no entiende. Un aviso sin descripción se puntúa solo por el título, y palabras con dos sentidos («riesgo», «crédito») pueden sumar de más.
+**Limitaciones:** lee palabras, no entiende. Puede equivocarse o sobrevalorar: un aviso sin descripción se puntúa solo por el título, y palabras con dos sentidos («riesgo», «crédito») pueden sumar de más.
+
+**Logos:** `data/logos/` trae logos de empresas frecuentes, compartidos con quien clone el repo, así la página no sale vacía la primera vez. Los que baja `actualizar --logos` quedan en `company_research/logos/` del perfil y tienen prioridad. La misma empresa escrita de otra forma («KPMG PERÚ» y «KPMG en Perú») comparte logo.
 
 ### `evaluar`: pasar las nuevas por `/rank` sin abrir el agente
 

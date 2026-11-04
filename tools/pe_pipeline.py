@@ -630,8 +630,8 @@ def cmd_actualizar(args) -> int:
                    Path("reports/frescura.json"))
         ok &= step("Lugar y rubro", py + [str(TOOLS / "pe_contexto.py"), *details, "--json"], Path("reports/contexto.json"))
         if args.logos:
-            searches = sorted(glob.glob(str(SEARCH_DIR / "**" / "*.json"), recursive=True))
-            ok &= step("Logos (descarga)", py + [str(TOOLS / "pe_logos.py"), *details, *searches])
+            # Folders, not files: hundreds of paths would overflow a Windows command line.
+            ok &= step("Logos (descarga)", py + [str(TOOLS / "pe_logos.py"), str(DETAIL_DIR), str(SEARCH_DIR)])
         if args.calificaciones:
             ok &= step("Calificaciones de Computrabajo (descarga)", py + [str(TOOLS / "pe_calificaciones.py")])
     else:

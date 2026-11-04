@@ -580,10 +580,11 @@ class RankLexico(unittest.TestCase):
             detail.write_text(json.dumps({"description": "Practicante de riesgos. Requisitos: estudiante desde el 8.º ciclo, "
                                                          "quinto superior, inglés avanzado, Power BI y Python."}), encoding="utf-8")
             hard = lx.score({"title": "Practicante de Riesgos", "detail": str(detail)}, self.FICHA)
-        self.assertEqual((hard["eligibility_gate"], hard["language_gate"]), ("FLAG", "FLAG"))
+        self.assertEqual((hard["eligibility_gate"], hard["language_gate"]), ("FLAG", "PASS"))  # English never gates
         self.assertIn("8.º ciclo", hard["eligibility_note"])
         self.assertIn("quinto superior", hard["eligibility_note"])
-        self.assertTrue(any("Power BI" in g for g in hard["gaps"]))
+        self.assertTrue(any("Power BI" in w for w in hard["warnings"]))  # tools are reported, not scored
+        self.assertTrue(any("inglés avanzado" in w for w in hard["warnings"]))
         self.assertLess(hard["rank_score"], good["rank_score"])
 
     def test_rank_command_scores_only_the_waiting_ones(self):

@@ -7,14 +7,13 @@ by words ("rank léxico"), so the review page works for someone with no AI subsc
     python tools/pe_lexico.py rank --todas            # score again the ones this tool scored before
 
 The ficha (reports/busqueda/ficha.json, written by `pe_pipeline.py consultas`) holds careers,
-university, stage, cycle, merit, experience, English, tools, certifications and sectors. A posting
-scores up to 100 by words in its title, company and description: its area (40), the tools it asks for (20),
-the level against the stage and experience (20), English (10) and the sector (10). Formal
-requirements the ficha does not meet (cycle, merit, graduate status, English level) are not hidden
-in the score: they set eligibility_gate or language_gate to FLAG, which the page shows as
-"Confirmar antes". It writes the same fields /rank writes (status ranked, rank_score, rank_verdict,
-strengths, gaps, warnings, gates) plus rank_method "lexico", so /rank can score them again later.
-It is a word match, not understanding: it says so in each posting's warnings.
+university, stage, cycle, merit, experience, English, tools, certifications and sectors. The score
+is deliberately simple: only the area (60) and the level against the stage (40) move it. English
+and tools are reported, never scored (often desirable, and learnable). Formal requirements the
+ficha does not meet (cycle, graduate status, merit) set eligibility_gate FLAG, which the page shows
+as "Confirmar antes". It writes the same fields /rank writes plus rank_method "lexico", so /rank
+can score them again later. It is a word match, not understanding: it can be wrong or overrate a
+posting, and every result says so.
 """
 
 import argparse
@@ -165,54 +164,47 @@ def required_years(text: str) -> float | None:
     return float(m.group(1)) if m else None
 
 
+LIMITS = ("Puntaje sin IA, por palabras: puede equivocarse o sobrevalorar una oferta. Lee el aviso antes de decidir; "
+          "con IA (/rank) la evaluación es más fina.")
+
+
 def score(entry: dict, ficha: dict, employer_type=None) -> dict:
-    """The /rank-shaped result for one posting, from words only."""
+    """The /rank-shaped result for one posting, from words only, kept deliberately simple: only the
+    area (60) and the level (40) move the score. English and tools are reported, never scored: they
+    are often desirable rather than required, and can be learned. Formal requirements the ficha
+    does not meet (cycle, graduate status, merit) set eligibility_gate FLAG ("Confirmar antes")."""
     text = posting_text(entry)
     title = fold(entry.get("title") or "")
-    strengths, gaps, warnings = [], [], ["Puntaje sin IA (por palabras): revisa el aviso antes de decidir."]
+    strengths, gaps, warnings = [], [], [LIMITS]
     eligibility, notes = "PASS", []
-    total = 0
 
-    # Area (40): the candidate's careers in the title weigh most.
+    # Area (60): the candidate's careers in the title weigh most.
     areas = [a for a in (ficha.get("carreras") or []) if a in AREA_HINTS]
     in_title = [a for a in areas if any(h in title for h in AREA_HINTS[a])]
     in_text = {a: sum(text.count(h) for h in AREA_HINTS[a]) for a in areas}
-    if in_title:
-        total += 40
+    if not areas:
+        area_points = 35  # no careers in the ficha: neutral
+    elif in_title:
+        area_points = 60
         strengths.append(f"El puesto es de tu área ({', '.join(in_title)})")
     elif any(n >= 2 for n in in_text.values()):
-        total += 28
+        area_points = 42
         strengths.append(f"El aviso menciona tu área ({', '.join(a for a, n in in_text.items() if n >= 2)})")
     elif any(in_text.values()):
-        total += 14
-    elif areas:
+        area_points = 25
+    else:
+        area_points = 10
         gaps.append("El aviso no menciona tu área")
-    else:
-        total += 15  # no careers in the ficha: neutral
 
-    # Tools (20; 8 when it asks for none): what the posting asks for against what the candidate has.
-    asked = [k for k, hints in TOOL_HINTS.items() if any(h in text for h in hints)]
-    have = set(ficha.get("herramientas") or [])
-    if asked:
-        matched = [k for k in asked if k in have]
-        total += round(20 * len(matched) / len(asked))
-        if matched:
-            strengths.append("Tienes lo que pide: " + ", ".join(TOOL_NAMES[k] for k in matched))
-        missing = [k for k in asked if k not in have]
-        if missing:
-            gaps.append("Pide " + ", ".join(TOOL_NAMES[k] for k in missing) + " (no está en tu ficha)")
-    else:
-        total += 8
-
-    # Level (20): stage, cycle, graduate status, experience.
-    stage, level_points = ficha.get("etapa"), 20
+    # Level (40): stage, cycle, graduate status, experience, seniority.
+    stage, level_points = ficha.get("etapa"), 40
     intern_post = bool(re.search(r"practica|practicante|pasant|trainee|intern", text))
     grad_only = bool(re.search(r"\begresad|\bbachiller\b|\btitulad", text)) and " estudiante" not in text
     if stage == "estudiante" and grad_only:
-        eligibility, level_points = "FLAG", 5
+        eligibility, level_points = "FLAG", 15
         notes.append("Pide egresado o bachiller y tu ficha dice estudiante")
     if stage == "profesional" and intern_post:
-        level_points = 6
+        level_points = 12
         gaps.append("Es una práctica y tu ficha dice que ya trabajas")
     need_cycle = required_cycle(text)
     if need_cycle and stage == "estudiante":
@@ -221,73 +213,43 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
             eligibility = "FLAG"
             notes.append(f"Pide desde {need_cycle}.º ciclo; confirma el tuyo")
         elif top < need_cycle:
-            eligibility, level_points = "FLAG", min(level_points, 5)
+            eligibility, level_points = "FLAG", min(level_points, 15)
             notes.append(f"Pide desde {need_cycle}.º ciclo y tu ficha dice {ficha.get('ciclo')}")
     need_years = required_years(text)
     have_years = EXPERIENCE_YEARS.get(ficha.get("experiencia") or "")
-    if need_years:
-        if have_years is None:
-            warnings.append(f"Pide {need_years:g} años de experiencia; confirma la tuya")
-        elif have_years < need_years:
-            level_points = min(level_points, 4 if need_years - have_years >= 2 else 10)
-            gaps.append(f"Pide {need_years:g} años de experiencia")
-        else:
-            strengths.append(f"Cumples la experiencia que pide ({need_years:g} años)")
+    if need_years and have_years is not None and have_years + 1 < need_years:
+        level_points = min(level_points, 15)
+        gaps.append(f"Pide {need_years:g} años de experiencia")
     if re.search(r"\b(senior|jefe|gerente|director|head of)\b", title) and stage in ("estudiante", "egresado"):
         level_points = 0
         gaps.append("Es un puesto senior")
-    total += level_points
 
-    # Merit (gate only): a stated décimo/quinto/tercio superior the ficha does not meet.
+    # Merit: only a gate, never points.
     need_merit = required_merit(text)
-    if need_merit:
-        mine = ficha.get("merito")
-        if not mine:
-            eligibility = "FLAG"
-            notes.append(f"Pide {need_merit} superior; confirma tu mérito")
-        elif MERIT_ORDER[mine] > MERIT_ORDER[need_merit]:
-            eligibility = "FLAG"
-            notes.append(f"Pide {need_merit} superior y tu ficha dice {mine}")
-        else:
-            strengths.append(f"Cumples el mérito que pide ({need_merit} superior)")
+    mine = ficha.get("merito")
+    if need_merit and (not mine or MERIT_ORDER[mine] > MERIT_ORDER[need_merit]):
+        eligibility = "FLAG"
+        notes.append(f"Pide {need_merit} superior" + (f" y tu ficha dice {mine}" if mine else "; confirma tu mérito"))
 
-    # English (10; 6 when the posting does not mention it).
-    need_en, language_gate, language_note = english_level(text), "PASS", None
-    mine_en = ficha.get("ingles")
-    if not need_en:
-        total += 6
-    elif mine_en and ENGLISH_ORDER.get(mine_en, 0) >= ENGLISH_ORDER[need_en]:
-        total += 10
-        strengths.append(f"Tu inglés ({mine_en}) cubre el que pide ({need_en})")
-    else:
-        language_gate = "FLAG"
-        language_note = f"Pide inglés {need_en}" + (f"; tu ficha dice {mine_en}" if mine_en else "; tu ficha no lo dice")
-        gaps.append(language_note)
+    # English and tools: reported for the reader, never scored.
+    need_en, mine_en = english_level(text), ficha.get("ingles")
+    if need_en and ENGLISH_ORDER.get(mine_en or "", 0) < ENGLISH_ORDER[need_en]:
+        warnings.append(f"Menciona inglés {need_en}" + (f" (tu ficha: {mine_en})" if mine_en else "")
+                        + ": a veces es deseable, no excluyente; revisa el aviso.")
+    asked = [k for k, hints in TOOL_HINTS.items() if any(h in text for h in hints)]
+    have = set(ficha.get("herramientas") or [])
+    if asked:
+        if matched := [TOOL_NAMES[k] for k in asked if k in have]:
+            strengths.append("Manejas lo que menciona: " + ", ".join(matched))
+        if missing := [TOOL_NAMES[k] for k in asked if k not in have]:
+            warnings.append("Menciona " + ", ".join(missing) + ": suelen aprenderse; no bajan el puntaje.")
 
-    # Certifications: a stated CFA/FRM the candidate has is a strength (no points taken away).
-    certs = set(ficha.get("certificaciones") or [])
-    if "cfa" in text and certs & {"cfa1", "cfa2", "cfa3"}:
-        strengths.append("Menciona CFA y tienes avance en CFA")
-        total += 3
-
-    # Sector (10).
-    sectors = set(ficha.get("sectores") or [])
-    kind = employer_type(entry) if employer_type else None
-    if sectors and kind in sectors:
-        total += 10
-    elif not sectors or not kind:
-        total += 6  # no preference, or the employer is unknown
-    else:
-        gaps.append("No es del sector que elegiste")
-
-    total = max(0, min(100, total))
+    total = max(0, min(100, area_points + level_points))
     verdict = ("Strong Fit" if total >= 75 else "Good Fit" if total >= 60 else "Moderate Fit" if total >= 45
                else "Weak Fit" if total >= 30 else "Poor Fit")
     out = {"status": "ranked", "rank_score": total, "rank_verdict": verdict, "rank_date": date.today().isoformat(),
-           "rank_method": "lexico", "location_verdict": "PASS", "language_gate": language_gate,
+           "rank_method": "lexico", "location_verdict": "PASS", "language_gate": "PASS",
            "eligibility_gate": eligibility, "strengths": strengths[:3], "gaps": gaps[:3], "warnings": warnings}
-    if language_note:
-        out["language_note"] = language_note
     if notes:
         out["eligibility_note"] = "; ".join(notes)
     return out

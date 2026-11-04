@@ -716,5 +716,19 @@ class SharedRatings(unittest.TestCase):
         self.assertEqual(cal.guesses("Grupo Ripley S.A."), ["grupo-ripley-s-a", "grupo-ripley"])
 
 
+class SharedLogos(unittest.TestCase):
+    def test_same_employer_written_another_way_shares_the_logo_but_generic_words_do_not(self):
+        png = bytes([0x89]) + b"PNG fake"
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "logos"
+            folder.mkdir()
+            for name in ("kpmg-en-peru", "sanna-salud", "banco-pichincha"):
+                (folder / f"{name}.png").write_bytes(png)
+            logos = {k: {"file": f"{k}.png", "_dir": str(folder)} for k in ("kpmg-en-peru", "sanna-salud", "banco-pichincha")}
+            self.assertIsNotNone(pr.logo_uri(Path(tmp), logos, "KPMG PERÚ"))
+            self.assertIsNotNone(pr.logo_uri(Path(tmp), logos, "SANNA"))
+            self.assertIsNone(pr.logo_uri(Path(tmp), logos, "Banco de Crédito"))  # "banco" alone is not a match
+
+
 if __name__ == "__main__":
     unittest.main()

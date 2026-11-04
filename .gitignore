@@ -40,6 +40,8 @@ linkedin_Profile.pdf
 *.jpeg
 *.png
 !cover_letters/OpenFonts/fonts/**
+# Employer logos shared with every clone (tools/pe_revision.py, SHARED_LOGOS): public company images.
+!data/logos/*.png
 
 # OS files
 .DS_Store

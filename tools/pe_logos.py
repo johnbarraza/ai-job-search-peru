@@ -77,6 +77,8 @@ GENERIC = re.compile(r"confidencial|importante empresa|empleador no divulgado|em
 def posting_logos(paths) -> dict[str, tuple[str, str]]:
     """company_file -> (company name as posted, logo URL) found on the postings themselves."""
     found: dict[str, tuple[str, str]] = {}
+    # A folder stands for every JSON under it: hundreds of files would overflow a Windows command line.
+    paths = [f for p in paths for f in (sorted(Path(p).rglob("*.json")) if Path(p).is_dir() else [p])]
     for path in paths:
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))

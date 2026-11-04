@@ -251,23 +251,48 @@ def company_file(name: str) -> str:
     return (name or "").strip().lower().replace(" ", "-") + ".json"
 
 
+SHARED_LOGOS = ROOT / "data" / "logos"  # shipped with the repo, so a first page is not all initials
+LOGO_FILLER = {"peru", "en", "del", "de", "la", "el", "y", "sa", "saa", "sac", "srl", "eirl", "s", "a", "c", "the"}
+LOGO_GENERIC = {"banco", "grupo", "compania", "corporacion", "consultores", "consultoria", "servicios", "empresa",
+                "universidad", "instituto", "asociacion", "seguros", "financiera", "caja", "peruana", "nacional"}
+
+
+def _logo_words(name: str) -> frozenset:
+    return frozenset(w for w in re.findall(r"[a-z0-9]+", _fold(name)) if w not in LOGO_FILLER)
+
+
 def load_logos(research_dir: Path) -> dict:
-    """tools/pe_logos.py's index: company key -> PNG file in research_dir/logos."""
-    try:
-        index = json.loads((research_dir / "logos" / "index.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return index if isinstance(index, dict) else {}
+    """tools/pe_logos.py's index, company key -> entry: the repo's shared logos (data/logos), with the
+    profile's own (company_research/logos) on top. Each entry remembers its folder."""
+    out: dict = {}
+    for folder in (SHARED_LOGOS, research_dir / "logos"):
+        try:
+            index = json.loads((folder / "index.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for key, entry in (index if isinstance(index, dict) else {}).items():
+            if isinstance(entry, dict):
+                out[key] = dict(entry, _dir=str(folder))
+    return out
 
 
 def logo_uri(research_dir: Path, logos: dict, company: str) -> str | None:
-    """The employer's logo as a data: URI, so the page stays one offline file."""
+    """The employer's logo as a data: URI, so the page stays one offline file. The same employer
+    written another way ("KPMG PERÚ" / "KPMG en Perú", "SANNA" / "SANNA salud") shares it when the
+    names share a distinctive word and one name's words contain the other's."""
     entry = logos.get(re.sub(r"\s+", "-", (company or "").strip().lower()))
+    if entry is None and (mine := _logo_words(company)):
+        for key, candidate in logos.items():
+            theirs = _logo_words(key.replace("-", " "))
+            shared = {w for w in mine & theirs if len(w) >= 3 and w not in LOGO_GENERIC}
+            if shared and (mine <= theirs or theirs <= mine):
+                entry = candidate
+                break
     file = entry.get("file") if isinstance(entry, dict) else None
     if not isinstance(file, str) or not re.fullmatch(r"[a-z0-9_-]+\.png", file):
         return None  # the index may be hand-edited: only plain PNG names in the logos folder
     try:
-        data = (research_dir / "logos" / file).read_bytes()
+        data = (Path(entry.get("_dir") or research_dir / "logos") / file).read_bytes()
     except OSError:
         return None
     if not data.startswith(b"\x89PNG"):
@@ -1162,6 +1187,7 @@ details.sec .track{margin-top:12px}
 .pickbar .fine{flex-basis:100%;margin:0}
 .pickbar button.close{margin-left:auto;min-width:40px;padding:0;font-size:20px;line-height:1}
 .sc .lx{display:block;font-size:10px;color:var(--dim);margin-top:2px;white-space:nowrap}
+.lx-note{margin:6px 0 10px;padding:10px 14px;border-radius:10px;background:var(--warn-bg);color:var(--warn-ink)}
 .d-src{font-size:12px;color:var(--dim)}
 .facts{margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .facts>div{padding:12px 16px;background:var(--surface);border-right:1px solid var(--line);min-width:0}.facts>div:last-child{border-right:0}
@@ -2025,6 +2051,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="role-filter" role="group" aria-label="Filtrar por tipo de puesto"><span>Tipo de puesto</span><div class="quick">{role_buttons}</div></div>
 {chip_levels}
 {f'<p class="note"><a href="#sec-cerradas" data-open="sec-cerradas">Ver {len(closed_public)} {"convocatoria pública cerrada" if len(closed_public) == 1 else "convocatorias públicas cerradas"}</a></p>' if closed_public else ''}
+{'<p class="note lx-note"><b>Puntajes «sin IA»:</b> comparan palabras del aviso con tu ficha (área y nivel). Pueden equivocarse o sobrevalorar una oferta: lee el aviso antes de decidir. El inglés y las herramientas se muestran, pero no bajan el puntaje (suelen ser deseables y se aprenden). Con IA (<code>/rank</code>) la evaluación es más fina.</p>' if any(r.get("rank_method") == "lexico" for r in main_rows) else ''}
 <div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
 <div class="list-tools"><label>Orden <select id="so">{sort_opts}</select></label></div></div>
 <div class="cols" role="group" aria-label="Ordenar por columna">{col_buttons}<span></span></div>
