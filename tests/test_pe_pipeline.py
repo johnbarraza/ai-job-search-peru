@@ -391,19 +391,70 @@ class Diario(unittest.TestCase):
         self.assertRegex(log, r"== \d\d/\d\d/\d{4} \d{1,2}:\d\d [ap]\. m\. \(hora de Perú, UTC-5\)")
         self.assertIn("3 evaluadas", log)
 
-    def test_diario_fails_when_agy_does_not_succeed(self):
-        code, _ = self.run_main(["diario", "--ia", "agy"], {"status": "ERROR", "response": ""})
+    def steps_run(self):
+        return [c[4] if c[0] != "agy" else "agy" for c in self.calls]
+
+    def at(self, hour, minute=0):
+        """Freeze diario's clock at hour:minute in Peru on 04/11/2026."""
+        frozen = pp.datetime(2026, 11, 4, hour, minute, tzinfo=pp.PERU)
+
+        class Clock(pp.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None)
+        return mock.patch.object(pp, "datetime", Clock)
+
+    def state(self, **fields):
+        (self.tmp / pp.DAILY_STATE).write_text(json.dumps(fields), encoding="utf-8")
+
+    def test_diario_fails_when_agy_does_not_succeed_and_resumes_from_rank(self):
+        with self.at(8):
+            code, _ = self.run_main(["diario", "--ia", "agy"], {"status": "ERROR", "response": ""})
         self.assertEqual(code, 1)
+        saved = json.loads((self.tmp / pp.DAILY_STATE).read_text(encoding="utf-8"))
+        self.assertEqual((saved["fecha"], saved["terminado"], saved["hechos"]), ("2026-11-04", False, ["actualizar", "buscar"]))
+        self.calls.clear()
+        with self.at(9):
+            code, _ = self.run_main(["diario", "--ia", "agy"], {"status": "SUCCESS", "response": "ok"})
+        self.assertEqual((code, self.steps_run()), (0, ["agy"]))
+        self.assertIn("retoma la corrida de las 8:00 a. m.", (self.tmp / pp.DAILY_LOG).read_text(encoding="utf-8"))
+
+    def test_an_unfinished_run_from_another_day_starts_over(self):
+        self.state(fecha="2026-11-03", inicio="03/11/2026 8:00 a. m.", hechos=["buscar"], terminado=False)
+        with self.at(10):
+            self.run_main(["diario"])
+        self.assertEqual(self.steps_run(), ["buscar", "actualizar"])
+
+    def test_programado_at_login_does_nothing_before_the_hour_or_after_todays_run(self):
+        with self.at(7, 30):
+            self.assertEqual(self.run_main(["diario", "--programado", "8:00 am"])[0], 0)
+        self.assertEqual(self.calls, [])
+        self.state(fecha="2026-11-04", inicio="04/11/2026 8:00 a. m.", hechos=["actualizar", "buscar"], terminado=True)
+        with self.at(11):
+            self.run_main(["diario", "--programado", "8:00 am"])
+        self.assertEqual(self.calls, [])
+
+    def test_programado_at_login_catches_up_a_missed_run_and_resumes_a_cut_one(self):
+        with self.at(11):  # the PC was off at 8:00
+            self.run_main(["diario", "--programado", "8:00 am"])
+        self.assertEqual(self.steps_run(), ["buscar", "actualizar"])
+        self.calls.clear()
+        self.state(fecha="2026-11-04", inicio="04/11/2026 8:00 a. m.", hechos=["buscar"], terminado=False)
+        with self.at(7):  # cut short; resumes at login even before the hour
+            self.run_main(["diario", "--programado", "8:00 am"])
+        self.assertEqual(self.steps_run(), ["actualizar"])
 
     @unittest.skipUnless(pp.sys.platform == "win32", "Task Scheduler")
-    def test_programar_registers_a_daily_task_at_the_pcs_clock(self):
+    def test_programar_registers_a_daily_and_login_task_at_the_pcs_clock(self):
         code, out = self.run_main(["programar", "--hora", "8:00 am", "--ia", "agy"])
         self.assertEqual(code, 0)
-        script = self.calls[0][-1]
+        self.assertEqual(self.calls[0][-2], "-EncodedCommand")
+        script = pp.base64.b64decode(self.calls[0][-1]).decode("utf-16-le")
         local = pp.next_run(8, 0, False, pp.datetime.now(pp.timezone.utc)).astimezone()
         self.assertIn(f"AddHours({local.hour}).AddMinutes({local.minute})", script)
+        self.assertIn("-AtLogOn", script)
         self.assertIn("-StartWhenAvailable", script)
-        self.assertIn("diario --ia agy", script)
+        self.assertIn("diario --programado 08:00 --ia agy", script)
         self.assertIn(f"-WorkingDirectory '{self.tmp}'", script)
         self.assertIn("8:00 a. m. hora de Perú (UTC-5) = 13:00 UTC", out)
 

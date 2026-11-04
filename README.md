@@ -132,7 +132,7 @@ Abre `reports\revision-ofertas.html` con doble clic. Funciona sin internet y mue
 python tools/pe_pipeline.py programar --hora "8:00 am"
 ```
 
-Desde ese día, la búsqueda y la página se actualizan solas a esa hora: Programador de tareas en Windows, `launchd` en Mac. La hora es de Perú (UTC-5) y acepta `8:00 am`, `7:30 p. m.` o `20:30`; `--utc` la lee en UTC. Con `--ia agy` o `--ia claude`, también corre `/rank` después de buscar. Cada corrida queda en `reports/busqueda/diario.log`, con fecha DD/MM/AAAA. Detalles en [docs/PIPELINE.md](docs/PIPELINE.md#diario-y-programar-la-búsqueda-todos-los-días-sola).
+Desde ese día, la búsqueda y la página se actualizan solas a esa hora: Programador de tareas en Windows, `launchd` en Mac. La hora la eliges tú y es de Perú (UTC-5): acepta `8:00 am`, `7:30 p. m.` o `20:30`; `--utc` la lee en UTC. Para cambiarla, vuelve a correr `programar`. Si la PC estaba apagada a esa hora o la corrida se cortó, se retoma desde el paso pendiente al iniciar sesión. Con `--ia agy` o `--ia claude`, también corre `/rank` después de buscar. Cada corrida queda en `reports/busqueda/diario.log`, con fecha DD/MM/AAAA. Detalles en [docs/PIPELINE.md](docs/PIPELINE.md#diario-y-programar-la-búsqueda-todos-los-días-sola).
 
 ### 6. Evaluar y postular (con un agente)
 

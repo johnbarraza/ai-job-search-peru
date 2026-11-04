@@ -20,7 +20,8 @@ stay with the model):
               --json prints it as data.
   diario      buscar --detalle --registrar, then (with --ia agy|claude) /rank run headless by
               that CLI, then actualizar; every line also goes to reports/busqueda/diario.log,
-              stamped DD/MM/AAAA and 12-hour Peru time.
+              stamped DD/MM/AAAA and 12-hour Peru time. A run cut short resumes that day from the
+              step that did not finish (reports/busqueda/diario-estado.json).
   programar   register `diario` as a daily task (Windows Task Scheduler, macOS launchd; on
               Linux it prints the crontab line). --hora takes Peru time (UTC-5) in 12- or
               24-hour form ("8:00 am", "7:30 p. m.", "20:30"); --utc reads it as UTC instead.
@@ -45,6 +46,7 @@ Usage (from the profile folder, e.g. perfiles/<nombre>):
 """
 
 import argparse
+import base64
 import glob
 import importlib.util
 import json
@@ -98,6 +100,7 @@ MAX_PAGES = 10
 # no tz database (Windows Python ships none).
 PERU = timezone(timedelta(hours=-5), "UTC-5")
 DAILY_LOG = SEARCH_DIR / "diario.log"
+DAILY_STATE = SEARCH_DIR / "diario-estado.json"
 TASK_NAME = "AI Job Search Peru"
 # `diario --ia`: /rank run headless by the agent CLI. No flag here widens what the agent may do:
 # each CLI applies the user's own permission rules, and what they do not allow is skipped and logged.
@@ -703,40 +706,71 @@ def next_run(hour: int, minute: int, utc: bool, now: datetime) -> datetime:
 
 
 def cmd_diario(args) -> int:
+    """One day's run. reports/busqueda/diario-estado.json records which steps finished, so a run
+    cut short (window closed, PC turned off, a step failed) resumes that same day from the step
+    that did not finish. With --programado HH:MM (what the scheduled task passes) it also runs
+    at login: it resumes an unfinished run, does today's run if that hour has passed and it has
+    not run yet, and otherwise does nothing."""
+    now = datetime.now(PERU)
+    today = now.date().isoformat()
+    try:
+        state = json.loads(DAILY_STATE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        state = {}
+    resume = state.get("fecha") == today and not state.get("terminado")
+    if args.programado and not resume:
+        if state.get("fecha") == today:
+            print(f"La corrida de hoy ya terminó ({state.get('fin', '')}); nada que hacer.")
+            return 0
+        if (now.hour, now.minute) < args.programado:
+            print(f"Todavía no es la hora programada ({hora_12(now.replace(hour=args.programado[0], minute=args.programado[1]))}).")
+            return 0
     py = [sys.executable, "-X", "utf8", str(Path(__file__).resolve())]
-    steps = [("Búsqueda", py + ["buscar", "--detalle", "--registrar"])]
+    steps = [("buscar", "Búsqueda", py + ["buscar", "--detalle", "--registrar"])]
     if args.ia:
-        steps.append((f"Evaluación /rank con {args.ia}", IA[args.ia]))
-    steps.append(("Página y estado", py + ["actualizar"] + (["--titulo", args.titulo] if args.titulo else [])))
+        steps.append(("rank", f"Evaluación /rank con {args.ia}", IA[args.ia]))
+    steps.append(("actualizar", "Página y estado", py + ["actualizar"] + (["--titulo", args.titulo] if args.titulo else [])))
+    done = set(state.get("hechos") or []) if resume else set()
+    if not resume:
+        state = {"fecha": today, "inicio": fecha_hora(now)}
+
+    def save(**changes) -> None:
+        state.update(changes, hechos=sorted(done))
+        DAILY_STATE.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+
     DAILY_LOG.parent.mkdir(parents=True, exist_ok=True)
-    ok = True
+    save(terminado=False)
     with DAILY_LOG.open("a", encoding="utf-8") as log:
         def out(line: str) -> None:
             print(line)
             log.write(line + "\n")
             log.flush()
 
-        out(f"== {fecha_hora(datetime.now(PERU))} (hora de Perú, UTC-5) · {Path.cwd().name} ==")
-        for label, cmd in steps:
+        out(f"== {fecha_hora(now)} (hora de Perú, UTC-5) · {Path.cwd().name}"
+            + (f" · retoma la corrida de las {state['inicio'].split(' ', 1)[-1]}" if resume else "") + " ==")
+        for key, label, cmd in steps:
+            if key in done:
+                out(f"· {label}: ya hecho en esta corrida")
+                continue
             out(f"· {label}")
             exe = shutil.which(cmd[0])
             if not exe:
                 out(f"  falló: no encuentro «{cmd[0]}» en el PATH")
-                ok = False
                 continue
             try:
                 proc = subprocess.run([exe, *cmd[1:]], capture_output=True, text=True, encoding="utf-8",
-                                      errors="replace", timeout=IA_TIMEOUT if cmd is IA.get(args.ia) else None)
+                                      errors="replace", timeout=IA_TIMEOUT if key == "rank" else None)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 out(f"  falló: {exc}")
-                ok = False
                 continue
-            text = proc.stdout
+            text, step_ok = proc.stdout, proc.returncode == 0
+            if key == "buscar":
+                step_ok |= proc.returncode == 2  # it ran; a portal that failed is in cobertura.json
             if cmd[0] == "agy":  # --output-format json: {"status": "SUCCESS", "response": "...", ...}
                 try:
                     reply = json.loads(proc.stdout)
                     text = f'{reply.get("status")}\n{reply.get("response") or ""}'
-                    ok &= reply.get("status") == "SUCCESS"
+                    step_ok &= reply.get("status") == "SUCCESS"
                 except ValueError:
                     pass
             for line in (text + "\n" + proc.stderr).splitlines():
@@ -744,8 +778,13 @@ def cmd_diario(args) -> int:
                     out("  " + line)
             if cmd[0] == "agy" and proc.stderr.strip():
                 out("  (si arriba agy nombra una herramienta sin permiso, la saltó y terminó igual: ver docs/PIPELINE.md, «diario»)")
-            ok &= proc.returncode == 0
-        out("== terminado " + ("sin errores" if ok else "con errores") + " ==\n")
+            if step_ok:
+                done.add(key)
+                save()
+        ok = all(key in done for key, _, _ in steps)
+        save(terminado=ok, fin=fecha_hora(datetime.now(PERU)))
+        out("== terminado sin errores ==\n" if ok else
+            "== quedó a medias: se retoma hoy al volver a iniciar sesión o con `python tools/pe_pipeline.py diario` ==\n")
     return 0 if ok else 1
 
 
@@ -780,21 +819,26 @@ def cmd_programar(args) -> int:
         return 2
     run = next_run(*args.hora, args.utc, datetime.now(timezone.utc))
     local = run.astimezone()  # the PC's own clock, which is what the scheduler reads
-    cmd = [sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "diario"]
+    peru = run.astimezone(PERU)
+    cmd = [sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "diario", "--programado", f"{peru:%H:%M}"]
     cmd += (["--ia", args.ia] if args.ia else []) + (["--titulo", args.titulo] if args.titulo else [])
     if sys.platform == "win32":
         q = lambda s: "'" + str(s).replace("'", "''") + "'"  # PowerShell single-quoted string
         script = (
+            "$ProgressPreference = 'SilentlyContinue'; "  # else stderr carries CLIXML progress, not the error
             f"$a = New-ScheduledTaskAction -Execute {q(cmd[0])} -Argument {q(subprocess.list2cmdline(cmd[1:]))}"
             f" -WorkingDirectory {q(cwd)}; "
-            f"$t = New-ScheduledTaskTrigger -Daily -At ([datetime]::Today.AddHours({local.hour}).AddMinutes({local.minute})); "
-            # A laptop that was off or asleep at that hour runs it when it wakes, also on battery.
+            # Daily at that hour, and at login: `diario --programado` then resumes a run that was
+            # cut short, or does today's if the PC was off at that hour; otherwise it does nothing.
+            f"$t = @((New-ScheduledTaskTrigger -Daily -At ([datetime]::Today.AddHours({local.hour}).AddMinutes({local.minute}))), "
+            "(New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name))); "
             "$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries"
             " -ExecutionTimeLimit (New-TimeSpan -Hours 3); "
             f"Register-ScheduledTask -TaskName {q(name)} -Action $a -Trigger $t -Settings $s -Force"
             f" -Description {q('python tools/pe_pipeline.py diario en ' + str(cwd))} | Out-Null")
-        proc = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                              capture_output=True, text=True)
+        # -EncodedCommand (UTF-16LE base64): no quoting surprises with spaces or accents in paths.
+        proc = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand",
+                               base64.b64encode(script.encode("utf-16-le")).decode()], capture_output=True, text=True)
         if proc.returncode:
             print(f"no pude crear la tarea: {proc.stderr.strip()[:400]}", file=sys.stderr)
             return 1
@@ -804,6 +848,7 @@ def cmd_programar(args) -> int:
         with plist.open("wb") as f:
             plistlib.dump({"Label": label, "ProgramArguments": cmd, "WorkingDirectory": str(cwd),
                            "StartCalendarInterval": {"Hour": local.hour, "Minute": local.minute},
+                           "RunAtLoad": True,  # at login: resume or catch up, as on Windows
                            # launchd starts with a bare PATH: keep this shell's so bun and agy are found.
                            "EnvironmentVariables": {"PATH": os.environ.get("PATH", "")},
                            "StandardErrorPath": str(cwd / SEARCH_DIR / "diario-launchd.err")}, f)
@@ -817,10 +862,11 @@ def cmd_programar(args) -> int:
         print("Agrega esta línea con `crontab -e`:")
         print(f"{local.minute} {local.hour} * * * cd {shlex.quote(str(cwd))} && {shlex.join(cmd)}")
         where = "cron"
-    peru, utc = run.astimezone(PERU), run.astimezone(timezone.utc)
-    print(f"Búsqueda diaria: {hora_12(peru)} hora de Perú (UTC-5) = {utc:%H:%M} UTC"
+    print(f"Búsqueda diaria: {hora_12(peru)} hora de Perú (UTC-5) = {run.astimezone(timezone.utc):%H:%M} UTC"
           + (f" · luego /rank con {args.ia}" if args.ia else ""))
     print(f"Primera corrida: {fecha_hora(run)} · {where}")
+    print("Si la PC estaba apagada a esa hora o la corrida se cortó, se retoma al iniciar sesión."
+          " Para cambiar la hora, vuelve a correr programar.")
     if local.utcoffset() != PERU.utcoffset(None):
         print(f"Ojo: el reloj de este equipo no está en hora de Perú; la tarea queda a las {local:%H:%M} de su reloj"
               " y, si su zona cambia de horario de verano, se correrá una hora.")
@@ -860,6 +906,8 @@ def main(argv=None) -> int:
     d = sub.add_parser("diario", help="buscar, then optional /rank by an agent CLI, then actualizar; logged")
     d.add_argument("--ia", choices=sorted(IA), help="agent CLI that runs /rank headless between the two")
     d.add_argument("--titulo", help="name in the page heading")
+    d.add_argument("--programado", type=parse_hora, metavar="HH:MM",
+                   help="scheduled Peru time (the task passes it): at login, run only to resume or catch up")
     pg = sub.add_parser("programar", help="run `diario` every day (Windows Task Scheduler, macOS launchd)")
     pg.add_argument("--hora", type=parse_hora, help='Peru time: "8:00 am", "7:30 p. m.", "20:30"')
     pg.add_argument("--utc", action="store_true", help="read --hora as UTC instead of Peru time")
