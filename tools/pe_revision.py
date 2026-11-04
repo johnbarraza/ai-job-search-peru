@@ -1187,6 +1187,9 @@ details.sec .track{margin-top:12px}
 .pickbar .fine{flex-basis:100%;margin:0}
 .pickbar button.close{margin-left:auto;min-width:40px;padding:0;font-size:20px;line-height:1}
 .sc .lx{display:block;font-size:10px;color:var(--dim);margin-top:2px;white-space:nowrap}
+.lx-dialog{max-width:360px;border:1px solid var(--line-strong);border-radius:14px;padding:18px 20px;background:var(--surface);color:var(--ink)}
+.lx-dialog::backdrop{background:rgba(0,0,0,.45)}.lx-dialog p{margin:0 0 10px;font-size:14px}
+.lx-dialog button{min-height:40px;padding:0 18px;border-radius:9px;border:0;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
 .lx-note{margin:6px 0 10px;padding:10px 14px;border-radius:10px;background:var(--warn-bg);color:var(--warn-ink)}
 .d-src{font-size:12px;color:var(--dim)}
 .facts{margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -1372,6 +1375,12 @@ JS = """
   document.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('button[data-copy]');if(b)copy(b.dataset.copy,b);
   });
+  // Word-based scores: say once, briefly, that they can be wrong (remembered in this browser).
+  var lxd=document.getElementById('lx-dialog');
+  if(lxd&&lxd.showModal&&!get('pe_lexico_ok',false)){
+    lxd.addEventListener('close',function(){put('pe_lexico_ok',true);});
+    try{lxd.showModal();}catch(e){}
+  }
   // An old page looks like "no new postings": say how old it is and how to refresh it.
   var stale=document.getElementById('stale');
   if(stale){
@@ -2051,6 +2060,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="role-filter" role="group" aria-label="Filtrar por tipo de puesto"><span>Tipo de puesto</span><div class="quick">{role_buttons}</div></div>
 {chip_levels}
 {f'<p class="note"><a href="#sec-cerradas" data-open="sec-cerradas">Ver {len(closed_public)} {"convocatoria pública cerrada" if len(closed_public) == 1 else "convocatorias públicas cerradas"}</a></p>' if closed_public else ''}
+{'<dialog id="lx-dialog" class="lx-dialog"><p><b>Puntajes sin IA</b></p><p>Comparan palabras del aviso con tu ficha. Pueden equivocarse o sobrevalorar una oferta: lee el aviso antes de postular.</p><form method="dialog"><button type="submit" id="lx-ok">Entendido</button></form></dialog>' if any(r.get("rank_method") == "lexico" for r in main_rows) else ''}
 {'<p class="note lx-note"><b>Puntajes «sin IA»:</b> comparan palabras del aviso con tu ficha (área y nivel). Pueden equivocarse o sobrevalorar una oferta: lee el aviso antes de decidir. El inglés y las herramientas se muestran, pero no bajan el puntaje (suelen ser deseables y se aprenden). Con IA (<code>/rank</code>) la evaluación es más fina.</p>' if any(r.get("rank_method") == "lexico" for r in main_rows) else ''}
 <div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
 <div class="list-tools"><label>Orden <select id="so">{sort_opts}</select></label></div></div>

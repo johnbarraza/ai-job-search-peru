@@ -574,7 +574,17 @@ class RankLexico(unittest.TestCase):
         lx = pp.pe_lexico
         good = lx.score({"title": "Practicante de Finanzas", "level": "práctica preprofesional"}, self.FICHA)
         self.assertEqual((good["status"], good["rank_method"], good["eligibility_gate"]), ("ranked", "lexico", "PASS"))
-        self.assertGreaterEqual(good["rank_score"], 75)
+        self.assertEqual(good["rank_score"], 70)  # title only: capped, never Strong Fit
+        # A job for graduates (SERVIR CAS) for a student, even in the student's area: low and flagged.
+        cas = lx.score({"title": "ESPECIALISTA EN GESTION DE RIESGOS", "type": "laboral"}, self.FICHA)
+        self.assertLess(cas["rank_score"], 45)
+        self.assertEqual(cas["eligibility_gate"], "FLAG")
+        self.assertEqual(lx.required_years(lx.fold("experiencia laboral general minima de cinco (05) anos")), 5.0)
+        # The public sector is strict: the same unmet requirement there means discard (gate FAIL).
+        public = lx.score({"title": "ESPECIALISTA EN GESTION DE RIESGOS", "type": "laboral"}, self.FICHA, lambda e: "publico")
+        self.assertEqual(public["eligibility_gate"], "FAIL")
+        private = lx.score({"title": "ESPECIALISTA EN GESTION DE RIESGOS"}, self.FICHA, lambda e: "privado")
+        self.assertEqual(private["eligibility_gate"], "FLAG")
         with tempfile.TemporaryDirectory() as tmp:
             detail = Path(tmp) / "d.json"
             detail.write_text(json.dumps({"description": "Practicante de riesgos. Requisitos: estudiante desde el 8.º ciclo, "

@@ -145,6 +145,12 @@ def posting_text(entry: dict) -> str:
     return fold(" ".join(parts))
 
 
+def has_description(entry: dict) -> bool:
+    detail = entry.get("detail")
+    doc = load_json(Path(detail), {}) if detail and Path(detail).is_file() else {}
+    return any(len(str(doc.get(k) or "")) > 80 for k in ("description", "requirements", "requisitos", "perfil"))
+
+
 def required_cycle(text: str) -> int | None:
     m = re.search(r"(?:a partir del?|desde(?: el)?|minimo|cursando(?: el)?|al menos(?: el)?)\s*(\d{1,2})\s*\.?\s*"
                   r"(?:°|º|o|vo|mo|to|ro|do|er)?\.?\s*ciclo", text)
@@ -160,7 +166,9 @@ def required_merit(text: str) -> str | None:
 
 
 def required_years(text: str) -> float | None:
-    m = re.search(r"(\d{1,2})\s*(?:a\s*\d{1,2}\s*)?(?:\+\s*)?anos? de experiencia", text)
+    m = (re.search(r"(\d{1,2})\s*(?:a\s*\d{1,2}\s*)?(?:\+\s*)?anos? de experiencia", text)
+         # SERVIR's way: "experiencia laboral general minima de cinco (05) anos"
+         or re.search(r"experiencia[^.;]{0,80}?\(?(\d{1,2})\)?\s*anos", text))
     return float(m.group(1)) if m else None
 
 
@@ -176,7 +184,7 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
     text = posting_text(entry)
     title = fold(entry.get("title") or "")
     strengths, gaps, warnings = [], [], [LIMITS]
-    eligibility, notes = "PASS", []
+    eligibility, notes, unmet = "PASS", [], []  # unmet: requirements the ficha clearly does not meet
 
     # Area (60): the candidate's careers in the title weigh most.
     areas = [a for a in (ficha.get("carreras") or []) if a in AREA_HINTS]
@@ -198,11 +206,19 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
 
     # Level (40): stage, cycle, graduate status, experience, seniority.
     stage, level_points = ficha.get("etapa"), 40
-    intern_post = bool(re.search(r"practica|practicante|pasant|trainee|intern", text))
-    grad_only = bool(re.search(r"\begresad|\bbachiller\b|\btitulad", text)) and " estudiante" not in text
-    if stage == "estudiante" and grad_only:
+    intern_post = (bool(re.search(r"practica|practicante|pasant|trainee|intern|programa de extension", text))
+                   or entry.get("type") == "practicas")
+    grad_only = (bool(re.search(r"\begresad|\bbachiller\b|\btitulad|titulo (?:profesional|universitario)|colegiad", text))
+                 and " estudiante" not in text)
+    if stage == "estudiante" and not intern_post:
+        # A job, not an internship (a CAS, an analyst role): it usually asks for a degree and years.
+        eligibility, level_points = "FLAG", 5
+        notes.append("No es una práctica: suele pedir título y experiencia; revisa las bases")
+        unmet.append("no es una práctica")
+    elif stage == "estudiante" and grad_only:
         eligibility, level_points = "FLAG", 15
         notes.append("Pide egresado o bachiller y tu ficha dice estudiante")
+        unmet.append("pide egresado")
     if stage == "profesional" and intern_post:
         level_points = 12
         gaps.append("Es una práctica y tu ficha dice que ya trabajas")
@@ -215,11 +231,13 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
         elif top < need_cycle:
             eligibility, level_points = "FLAG", min(level_points, 15)
             notes.append(f"Pide desde {need_cycle}.º ciclo y tu ficha dice {ficha.get('ciclo')}")
+            unmet.append("ciclo")
     need_years = required_years(text)
     have_years = EXPERIENCE_YEARS.get(ficha.get("experiencia") or "")
     if need_years and have_years is not None and have_years + 1 < need_years:
         level_points = min(level_points, 15)
         gaps.append(f"Pide {need_years:g} años de experiencia")
+        unmet.append("experiencia")
     if re.search(r"\b(senior|jefe|gerente|director|head of)\b", title) and stage in ("estudiante", "egresado"):
         level_points = 0
         gaps.append("Es un puesto senior")
@@ -230,6 +248,8 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
     if need_merit and (not mine or MERIT_ORDER[mine] > MERIT_ORDER[need_merit]):
         eligibility = "FLAG"
         notes.append(f"Pide {need_merit} superior" + (f" y tu ficha dice {mine}" if mine else "; confirma tu mérito"))
+        if mine:
+            unmet.append("mérito")
 
     # English and tools: reported for the reader, never scored.
     need_en, mine_en = english_level(text), ficha.get("ingles")
@@ -245,8 +265,19 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
             warnings.append("Menciona " + ", ".join(missing) + ": suelen aprenderse; no bajan el puntaje.")
 
     total = max(0, min(100, area_points + level_points))
+    if stage == "estudiante" and not intern_post:
+        total = min(total, 40)  # the right area does not make a graduate job reachable for a student
+    elif eligibility == "FLAG":
+        total = min(total, 59)  # a formal requirement to confirm (cycle, degree, merit): never a top score
+    if not has_description(entry):
+        total = min(total, 70)  # only the title was read: no requirements seen, never "Strong Fit"
+        warnings.append("Solo leí el título: no vi los requisitos (bases, «Ver más» o el aviso).")
     verdict = ("Strong Fit" if total >= 75 else "Good Fit" if total >= 60 else "Moderate Fit" if total >= 45
                else "Weak Fit" if total >= 30 else "Poor Fit")
+    # The public sector applies its requirements strictly: an unmet one there means discard.
+    if unmet and employer_type and employer_type(entry) == "publico":
+        eligibility = "FAIL"
+        notes.insert(0, "Sector público: no cumples un requisito obligatorio de las bases")
     out = {"status": "ranked", "rank_score": total, "rank_verdict": verdict, "rank_date": date.today().isoformat(),
            "rank_method": "lexico", "location_verdict": "PASS", "language_gate": "PASS",
            "eligibility_gate": eligibility, "strengths": strengths[:3], "gaps": gaps[:3], "warnings": warnings}
