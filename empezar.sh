@@ -84,7 +84,8 @@ else
   echo "  Responde con el número; en las que dicen «varios», separa con comas (1,3)."
   echo "  Enter salta la pregunta; < vuelve a la anterior; al final puedes cambiar cualquier respuesta."
   echo "  Solo se busca lo que elijas: si eliges solo sector privado, no se busca en el público."
-  sector="" etapa="" ciclo="" merito="" area="" modo="" lugar="" city="Lima"
+  sector="" etapa="" ciclo="" merito="" area="" modo="" lugar="" city="Lima" modo_busqueda="lista" kw="" cv_file=""
+  pretty() { printf '%s' "${1:-$2}" | sed 's/,/, /g'; }
   # One question by number. Returns 1 when the answer is "<" (go back) and 2 when it does not apply.
   pregunta() {
     local v
@@ -108,12 +109,42 @@ else
       4) v=$(elegir "4. ¿Tienes mérito académico? (muchas prácticas lo piden)" "" "omitir" \
            "decimo|Décimo superior" "quinto|Quinto superior" "tercio|Tercio superior" "medio|Medio superior" "ninguno|Ninguno")
          [ "$v" = "<" ] && return 1; merito=${v%%,*} ;;
-      5) v=$(elegir "5. ¿De qué área? (varios)" "" "todas" \
-           "economia|Economía" "finanzas|Finanzas" "contabilidad|Contabilidad y auditoría" \
-           "administracion|Administración y negocios" "industrial|Ingeniería industrial" "datos|Datos y tecnología" \
-           "marketing|Marketing y ventas" "derecho|Derecho" "rrhh|Recursos humanos y psicología" \
-           "ingenieria|Otras ingenierías (civil, minas, sistemas)" "comunicaciones|Comunicaciones")
-         [ "$v" = "<" ] && return 1; area=$v ;;
+      5) v=$(elegir "5. ¿Cómo armamos tus búsquedas? (sin IA)" "lista" "elegir áreas" \
+           "lista|Eligiendo áreas de una lista" \
+           "palabras|Escribiendo palabras clave (ej. practicante finanzas, riesgos)" \
+           "cv|Desde tu CV (PDF, Word o texto): lee tus carreras, tu etapa y tu mérito")
+         [ "$v" = "<" ] && return 1
+         modo_busqueda=${v%%,*}; kw="" cv_file=""
+         if [ "$modo_busqueda" = "palabras" ]; then
+           kw=$(ask "  Palabras clave, separadas por comas: "); area=""
+           [ -n "$kw" ] || modo_busqueda="lista"
+         elif [ "$modo_busqueda" = "cv" ]; then
+           cv_file=$(ask "  Arrastra tu CV a esta ventana (o escribe su ruta) y presiona Enter: ")
+           cv_file=$(printf '%s' "$cv_file" | tr -d "\"'" | sed 's/^ *//; s/ *$//')
+           if [ -f "$cv_file" ] && found=$(run tools/pe_pipeline.py leer-cv "$(cygpath -w "$cv_file" 2>/dev/null || printf '%s' "$cv_file")"); then
+             cv_area="" cv_etapa="" cv_ciclo="" cv_merito=""
+             eval "$found"  # cv_* assignments from a fixed vocabulary, shell-quoted by pe_pipeline.py
+             area=$cv_area
+             # The CV fills only what was skipped: an answer given above wins.
+             [ -n "$etapa" ] || etapa=$cv_etapa
+             [ "$etapa" != "estudiante" ] || [ -n "$ciclo" ] || ciclo=$cv_ciclo
+             [ -n "$merito" ] || merito=$cv_merito
+             mkdir -p documents/cv && cp "$cv_file" documents/cv/ 2>/dev/null || true
+             echo "  Leí tu CV (sin IA): áreas $(pretty "$area" 'no claras'); etapa $(pretty "$etapa" '—'); mérito $(pretty "$merito" '—')."
+             echo "  Lo copié a documents/cv/ de tu perfil. Revisa el resumen de abajo: puedes corregir cualquier cosa."
+           else
+             echo "  No encontré o no pude leer ese archivo. Elige las áreas de la lista."
+             modo_busqueda="lista"
+           fi
+         fi
+         if [ "$modo_busqueda" = "lista" ]; then
+           v=$(elegir "   ¿De qué área? (varios)" "" "todas" \
+             "economia|Economía" "finanzas|Finanzas" "contabilidad|Contabilidad y auditoría" \
+             "administracion|Administración y negocios" "industrial|Ingeniería industrial" "datos|Datos y tecnología" \
+             "marketing|Marketing y ventas" "derecho|Derecho" "rrhh|Recursos humanos y psicología" \
+             "ingenieria|Otras ingenierías (civil, minas, sistemas)" "comunicaciones|Comunicaciones")
+           [ "$v" = "<" ] && return 1; area=$v
+         fi ;;
       6) v=$(elegir "6. ¿Qué modalidad? (varios)" "" "cualquiera" \
            "remoto|Remoto" "presencial|Presencial" "hibrido|Híbrido" "cualquiera|Cualquiera")
          [ "$v" = "<" ] && return 1; modo=$v ;;
@@ -134,7 +165,6 @@ else
       *) i=$((i + dir)); [ "$i" -ge 1 ] || { i=1; dir=1; } ;;
     esac
   done
-  pretty() { printf '%s' "${1:-$2}" | sed 's/,/, /g'; }
   while true; do
     echo
     echo "  Tus respuestas:"
@@ -142,7 +172,11 @@ else
     echo "    2) Etapa: $(pretty "$etapa" '—')"
     [ "$etapa" = "estudiante" ] && echo "    3) Ciclo: $(pretty "$ciclo" '—')"
     echo "    4) Mérito académico: $(pretty "$merito" '—')"
-    echo "    5) Área: $(pretty "$area" todas)"
+    case "$modo_busqueda" in
+      palabras) echo "    5) Búsqueda: palabras clave: $kw" ;;
+      cv) echo "    5) Búsqueda: desde tu CV ($(basename "$cv_file")) · áreas: $(pretty "$area" 'no claras: busca en general')" ;;
+      *) echo "    5) Búsqueda: áreas: $(pretty "$area" todas)" ;;
+    esac
     echo "    6) Modalidad: $(pretty "$modo" cualquiera)"
     echo "    7) Dónde: $(pretty "$lugar" lima)$([ "$lugar" = "peru" ] && printf ' (%s)' "$city")"
     change=$(ask "  Enter = está bien · o el número de la que quieres cambiar: ")
@@ -153,6 +187,7 @@ else
     esac
   done
   args=(--ciudad "$city" --sector "$sector" --modalidad "$modo" --area "$area")
+  [ -n "$kw" ] && args+=(--q "$kw")
   [ -n "$lugar" ] && args+=(--lugar "$lugar")
   [ -n "$etapa" ] && args+=(--etapa "$etapa")
   [ -n "$ciclo" ] && args+=(--ciclo "$ciclo")

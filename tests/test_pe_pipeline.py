@@ -548,5 +548,19 @@ class Consultas(unittest.TestCase):
             self.assertIn({"portal": "bumeran", "q": "practicante", "l": "Lima"}, qs)
 
 
+class LeerCv(unittest.TestCase):
+    def test_reads_areas_stage_cycle_and_merit_without_a_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cv = Path(tmp) / "cv.txt"
+            cv.write_text("Estudiante de Economía, 8.º ciclo, Quinto Superior. Practicante de Finanzas Corporativas: "
+                          "valorización de empresas y riesgo de crédito. Python, SQL, Stata y econometría.", encoding="utf-8")
+            found = pp.read_cv(pp.cv_text(cv))
+        self.assertEqual(set(found["area"].split(",")), {"economia", "finanzas", "datos"})
+        self.assertEqual((found["etapa"], found["ciclo"], found["merito"]), ("estudiante", "7-8", "quinto"))
+        self.assertEqual(pp.read_cv(" bachiller en derecho, abogado "), {"area": "derecho", "etapa": "egresado",
+                                                                          "ciclo": "", "merito": ""})
+        self.assertEqual(pp.read_cv(" nada que ver "), {"area": "", "etapa": "", "ciclo": "", "merito": ""})
+
+
 if __name__ == "__main__":
     unittest.main()

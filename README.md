@@ -55,7 +55,7 @@ Necesitas **Git** instalado ([cómo](#qué-necesitas)) y, si vas a usar IA, **Cl
 | `instalar_full.sh` 5/5 | `.venv`, librerías y buscadores de portales (`instalar_basico.sh`) | Nada | 1 a 3 min |
 | `empezar.sh` 1/5 | Crea tu perfil en `perfiles/<tu-nombre>/` | Tu nombre | Segundos |
 | `empezar.sh` 2/5 | Si tienes Claude Code, lo abre con `/setup`: tu CV, tus datos, qué buscas | Responder a Claude; al terminar, `/exit` y el script sigue | 10 a 20 min |
-| `empezar.sh` 3/5 | Arma tus búsquedas (`consultas.json`) y completa tu nivel, ciclo, mérito, modalidad y lugar en el perfil. Solo busca lo que elijas: con solo «privado», no busca en SERVIR | 7 preguntas con opciones numeradas, sin escribir nada: sector, si eres estudiante, ciclo, mérito académico (décimo, quinto, tercio, medio superior, ninguno), área, modalidad y dónde. Enter salta una, `<` vuelve a la anterior y al final un resumen te deja cambiar cualquiera | 1 min |
+| `empezar.sh` 3/5 | Arma tus búsquedas (`consultas.json`) y completa tu nivel, ciclo, mérito, modalidad y lugar en el perfil. Solo busca lo que elijas: con solo «privado», no busca en SERVIR | 7 preguntas con opciones numeradas: sector, si eres estudiante, ciclo, mérito académico (décimo, quinto, tercio, medio superior, ninguno), cómo armar la búsqueda (áreas de una lista, palabras clave o **desde tu CV**: arrastras el PDF o Word a la ventana y lo lee sin IA), modalidad y dónde. Enter salta una, `<` vuelve a la anterior y al final un resumen te deja cambiar cualquiera | 1 min |
 | `empezar.sh` 4/5 | Primera búsqueda en todos los portales y la página de revisión, que se abre sola | Nada | 5 a 15 min |
 | `empezar.sh` 5/5 | Programa la búsqueda diaria; opcional: que Claude evalúe las nuevas cada día | La hora (Enter = no programar) | Segundos |
 
@@ -232,7 +232,9 @@ Sigue el README (formas 1 y 2) y docs/INSTALAR.md, en este orden, y avísame ant
 5. Pregúntame, con opciones numeradas y dejándome saltar cualquiera: sector (privado, público, investigación,
    otros; varios), si soy estudiante, egresado o ya trabajo, mi ciclo (si soy estudiante), mi mérito académico
    (décimo, quinto, tercio, medio superior o ninguno), el área (varias), la modalidad y dónde (Lima, otra
-   ciudad del Perú, también fuera solo remoto, también fuera mudándome). Muéstrame un resumen para corregir.
+   ciudad del Perú, también fuera solo remoto, también fuera mudándome). Para el área puedo elegir de la lista,
+   darte palabras clave (--q) o pasarte mi CV: python tools/pe_pipeline.py leer-cv "<ruta>" lee áreas, etapa,
+   ciclo y mérito sin IA (lo que yo respondí gana). Muéstrame un resumen para corregir.
    Con eso crea mis búsquedas en el perfil (omite las opciones que no respondí):
    python tools/pe_pipeline.py consultas --sector "<privado,publico,investigacion,otros>"
      --etapa <estudiante|egresado|profesional> --ciclo <1-4|5-6|7-8|9+> --merito <decimo|quinto|tercio|medio|ninguno>

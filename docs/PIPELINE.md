@@ -62,6 +62,21 @@ La página ofrece atajos por tipo de puesto (Trabajo de campo, RR. HH., Práctic
 
 Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cómo postular y si ya hay CV a medida) y las primeras ofertas para postular. `--json` imprime lo mismo como datos, junto con las que aún no tienen CV.
 
+### `consultas` y `leer-cv`: armar las búsquedas sin IA
+
+`empezar.sh` los usa por ti; también se corren solos, dentro del perfil:
+
+```powershell
+python tools/pe_pipeline.py leer-cv "C:\ruta\mi cv.pdf"          # áreas, etapa, ciclo y mérito que se leen del CV
+python tools/pe_pipeline.py consultas --sector privado,publico --etapa estudiante --ciclo 7-8 --merito tercio `
+    --area finanzas,economia --modalidad remoto --lugar lima
+python tools/pe_pipeline.py consultas --q "practicante riesgos, analista de crédito" --reemplazar   # palabras clave propias
+```
+
+`consultas` escribe `reports/busqueda/consultas.json` y busca solo los sectores elegidos: privado y otros en Bumeran, Computrabajo y LinkedIn (y Prácticas.pe para practicantes), el público en SERVIR (prácticas o CAS según la etapa), investigación con «asistente de investigación» y «research assistant». Las frases salen de la etapa y el área («practicante finanzas», «analista junior economía») o de `--q`. Solo «remoto» filtra la búsqueda; híbrido y presencial quedan como preferencia del perfil. También completa en el `CLAUDE.md` del perfil lo que siga vacío: nivel, modalidad, si busca fuera, ciudad, ciclo y mérito. No reemplaza un `consultas.json` tuyo sin `--reemplazar` (el de ejemplo de `perfiles.py crear`, sí).
+
+`leer-cv` lee el texto de un PDF, Word (`.docx`) o `.txt` y busca palabras de cada área (por ejemplo «valorización», «riesgo» o «tesorería» para finanzas, «Python» o «SQL» para datos), la etapa (estudiante, egresado o bachiller), el ciclo y el mérito (décimo, quinto, tercio o medio superior). Es una lectura por palabras, sin IA: lo que no está claro lo deja vacío, y revísalo en el resumen de `empezar.sh`.
+
 ### `evaluar`: pasar las nuevas por `/rank` sin abrir el agente
 
 Las ofertas que trae `buscar` quedan en **Nuevas sin evaluar** (el recuadro naranja de arriba en la página) hasta que pasan por `/rank`. Sin eso no tienen puntaje y no aparecen en «Para decidir». La página trae un botón que copia este comando:

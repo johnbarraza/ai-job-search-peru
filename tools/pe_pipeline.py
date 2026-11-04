@@ -54,6 +54,7 @@ import os
 import plistlib
 import re
 import shlex
+import unicodedata
 import shutil
 import subprocess
 import sys
@@ -667,6 +668,69 @@ MERIT_TEXT = {"decimo": "Décimo superior", "quinto": "Quinto superior", "tercio
               "medio": "Medio superior", "ninguno": "ninguno (sin décimo, quinto ni tercio superior)"}
 
 
+# What a CV says that points to each area (accents and case folded before matching).
+AREA_HINTS = {
+    "economia": ["economia", "economista", "econometr", "macroeconom", "microeconom", "politica economica", "stata", "eviews"],
+    "finanzas": ["finanzas", "financier", "valorizacion", "valuacion", "banca", "inversion", "riesgo", "tesoreria",
+                 "credito", "mercado de capitales", "cfa", "bloomberg", "modelamiento financiero"],
+    "contabilidad": ["contabilidad", "contable", "contador", "auditoria", "niif", "nic ", "tributacion", "tributari"],
+    "administracion": ["administracion", "gestion empresarial", "negocios", "business", "emprendimiento"],
+    "industrial": ["ingenieria industrial", "procesos", "logistica", "operaciones", "cadena de suministro", "supply chain", "lean"],
+    "datos": ["python", "sql", "power bi", "tableau", "analisis de datos", "data analyst", "machine learning", "ciencia de datos", " r "],
+    "marketing": ["marketing", "mercadeo", "ventas", "comercial", "branding", "publicidad"],
+    "derecho": ["derecho", "abogad", "juridic", "legal"],
+    "rrhh": ["recursos humanos", "psicologia", "reclutamiento", "seleccion de personal", "gestion del talento"],
+    "ingenieria": ["ingenieria civil", "ingenieria de minas", "ingenieria de sistemas", "ingenieria mecanica", "software"],
+    "comunicaciones": ["comunicacion", "periodismo", "audiovisual", "relaciones publicas"],
+}
+
+
+def cv_text(path: Path) -> str:
+    """The text of a CV in PDF (pypdf), Word (.docx) or plain text, accents and case folded."""
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        from pypdf import PdfReader  # requirements-pdf.txt
+        raw = "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+    elif suffix == ".docx":
+        import zipfile
+        with zipfile.ZipFile(path) as z:
+            raw = re.sub(r"<[^>]+>", " ", z.read("word/document.xml").decode("utf-8", "replace"))
+    else:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    folded = unicodedata.normalize("NFKD", raw.lower())
+    return " " + re.sub(r"\s+", " ", "".join(c for c in folded if not unicodedata.combining(c))) + " "
+
+
+def read_cv(text: str) -> dict:
+    """What can be read from a CV without a model: areas (two or more hints, top three), the stage,
+    the cycle and the academic merit. Anything unclear is left out."""
+    hits = {a: sum(text.count(h) for h in hints) for a, hints in AREA_HINTS.items()}
+    areas = [a for a, n in sorted(hits.items(), key=lambda kv: -kv[1]) if n >= 2][:3]
+    merit = next((k for k, words in (("decimo", "decimo superior"), ("quinto", "quinto superior"),
+                                     ("tercio", "tercio superior"), ("medio", "medio superior")) if words in text), None)
+    m = re.search(r"\b(\d{1,2})\s*\.?\s*(?:°|º|o|vo|mo|to|ro|do|er)?\.?\s*ciclo", text)  # 8.º, 8vo, 8 ciclo
+    cycle = None
+    if m and 1 <= int(m.group(1)) <= 14:
+        n = int(m.group(1))
+        cycle = "1-4" if n <= 4 else "5-6" if n <= 6 else "7-8" if n <= 8 else "9+"
+    stage = ("egresado" if re.search(r"\begresad|\bbachiller\b|\btitulad", text) else
+             "estudiante" if cycle or re.search(r"\bestudiante\b|\b(cursando|en curso)\b", text) else None)
+    return {"area": ",".join(areas), "etapa": stage or "", "ciclo": (cycle or "") if stage == "estudiante" else "",
+            "merito": merit or ""}
+
+
+def cmd_leer_cv(args) -> int:
+    """empezar.sh's CV option: print what the CV says as shell assignments (fixed vocabulary only)."""
+    try:
+        found = read_cv(cv_text(args.cv))
+    except Exception as exc:  # an unreadable file is an answer too: nothing found
+        print(f"no pude leer {args.cv}: {exc}", file=sys.stderr)
+        return 1
+    for key, value in found.items():
+        print(f"cv_{key}={shlex.quote(value)}")
+    return 0
+
+
 def fill_profile(path: Path, values: dict[str, str], lines: dict[str, str] | None = None) -> list[str]:
     """Write the answers into the profile's CLAUDE.md where its template placeholders still are,
     and add `- **Label:** value` lines (ciclo, mérito) after the Target level line when absent;
@@ -1095,6 +1159,8 @@ def main(argv=None) -> int:
     pg.add_argument("--ia", choices=sorted(IA), help="also run /rank with this agent CLI")
     pg.add_argument("--titulo", help="name in the page heading")
     pg.add_argument("--quitar", action="store_true", help="remove the daily task")
+    lc = sub.add_parser("leer-cv", help="areas, stage, cycle and merit read from a CV, without a model (for empezar.sh)")
+    lc.add_argument("cv", type=Path, help="the CV: .pdf, .docx or .txt")
     ds = sub.add_parser("descartar", help="drop postings discarded on the review page (seen_jobs.json status skipped)")
     ds.add_argument("claves", nargs="+", help="posting keys, as the page's 'Copiar comando' writes them")
     ds.add_argument("--deshacer", action="store_true", help="put them back as they were")
@@ -1118,6 +1184,8 @@ def main(argv=None) -> int:
     cq.add_argument("--es-ejemplo", action="store_true", help="exit 0 when there is none yet or only perfiles.py's example")
     cq.add_argument("--consultas", type=Path, default=SEARCH_DIR / "consultas.json")
     args = ap.parse_args(argv)
+    if args.cmd == "leer-cv":
+        return cmd_leer_cv(args)
     if args.cmd == "consultas":
         return cmd_consultas(args)
     if args.cmd == "evaluar":
