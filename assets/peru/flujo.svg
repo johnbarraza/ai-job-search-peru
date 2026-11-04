@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 250" width="1200" height="250" role="img" aria-labelledby="t d">
   <title id="t">Flujo de trabajo</title>
-  <desc id="d">Seis pasos en orden. Sin IA: instalar.sh prepara el entorno y los portales, buscar trae las ofertas nuevas, actualizar arma la página de revisión y estado muestra los cierres próximos. Con IA, opcional: /rank evalúa el encaje con el perfil y /apply adapta el CV y la carta.</desc>
+  <desc id="d">Seis pasos en orden. Sin IA: instalar_full.sh prepara el entorno y los portales, buscar trae las ofertas nuevas, actualizar arma la página de revisión y estado muestra los cierres próximos. Con IA, opcional: /rank evalúa el encaje con el perfil y /apply adapta el CV y la carta.</desc>
   <style>
     .card{fill:#ffffff;stroke:#d0d7de}
     .track{stroke:#d0d7de} .done{stroke:#0550ae}
@@ -32,7 +32,7 @@
     <circle class="hole" cx="110" cy="84" r="18" stroke-width="2"/>
     <circle class="fill dot" cx="110" cy="84" r="18"/>
     <circle class="core" cx="110" cy="84" r="5"/>
-    <text class="cmd" x="110" y="138" text-anchor="middle">instalar.sh</text>
+    <text class="cmd" x="110" y="138" text-anchor="middle">instalar_full.sh</text>
     <text class="sub" x="110" y="164" text-anchor="middle">Entorno y portales</text>
     <rect class="chip" x="79" y="180" width="62" height="22" rx="11"/>
     <text class="chip-t" x="110" y="195" text-anchor="middle">sin IA</text>

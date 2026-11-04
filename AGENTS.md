@@ -8,7 +8,7 @@ This workspace is structured to manage job search activities, scraper tools, CVs
 
 ## Installing and running
 
-To install or run the tools for someone, follow [docs/INSTALAR.md](docs/INSTALAR.md) (section "Instrucciones para un asistente de IA", or `bash instalar.sh`): use the repository's `.venv`, install only `requirements.txt` (exact pins) and `python tools/install_portal_clis.py`, never install system programs or push without asking.
+To install or run the tools for someone, follow [docs/INSTALAR.md](docs/INSTALAR.md) (section "Instrucciones para un asistente de IA", or `bash instalar_basico.sh`; `bash instalar_full.sh` also installs system programs, so only when the user asks): use the repository's `.venv`, install only `requirements.txt` (exact pins) and `python tools/install_portal_clis.py`, never install system programs or push without asking.
 
 ## Thin-Pointer Design (Single Source of Truth)
 

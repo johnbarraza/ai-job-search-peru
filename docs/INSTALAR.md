@@ -92,13 +92,13 @@ La primera línea instala las librerías de Python listadas en `requirements.txt
 
 ## Alternativa: instalación con un script
 
-Los pasos 4 a 6 se pueden hacer con un solo comando, después de los pasos 2 y 3. En Windows se corre desde **Git Bash** (viene con Git: clic derecho en la carpeta del proyecto → *Open Git Bash here*); en Mac o Linux, desde la terminal:
+Los pasos 2 y 4 a 6 se pueden hacer con un solo comando (recomendado), después del paso 3. En Windows se corre desde **Git Bash** (viene con Git: clic derecho en la carpeta del proyecto → *Open Git Bash here*); en Mac o Linux, desde la terminal:
 
 ```bash
-bash instalar.sh
+bash instalar_full.sh
 ```
 
-El script crea `.venv`, instala `requirements.txt` y los buscadores, y avisa si falta Bun o LaTeX. No instala programas del sistema: si falta Python, muestra el comando para instalarlo y se detiene. Se puede repetir sin riesgo, por ejemplo después de un `git pull`. La activación del paso 5 sigue haciendo falta en cada terminal nueva.
+`instalar_full.sh` instala lo que falte de Python, Bun y LaTeX (con `winget`, Homebrew o `apt`) y luego corre `instalar_basico.sh`, que crea `.venv`, instala `requirements.txt` y los buscadores. Si ya tienes los programas, basta con `bash instalar_basico.sh`: no instala programas del sistema; si falta Python, muestra el comando y se detiene. Se puede repetir sin riesgo, por ejemplo después de un `git pull`. La activación del paso 5 sigue haciendo falta en cada terminal nueva.
 
 ## 7. Perfil
 

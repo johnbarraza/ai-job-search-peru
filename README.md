@@ -4,8 +4,8 @@
 
 <p align="center">
   <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest/download/ai-job-search-peru.zip"><img src="https://img.shields.io/badge/Descargar-ZIP-c8102e?style=for-the-badge&logo=github" alt="Descargar ZIP"></a>
-  <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest"><img src="https://img.shields.io/github/downloads/johnbarraza/ai-job-search-peru/total?style=for-the-badge&label=descargas&color=555" alt="Descargas del ZIP"></a>
-  <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest"><img src="https://img.shields.io/github/v/release/johnbarraza/ai-job-search-peru?style=for-the-badge&label=versi%C3%B3n&color=555" alt="Última versión"></a>
+  <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest"><img src="https://img.shields.io/github/downloads/johnbarraza/ai-job-search-peru/total?style=for-the-badge&label=descargas&color=555&cacheSeconds=3600" alt="Descargas del ZIP"></a>
+  <a href="https://github.com/johnbarraza/ai-job-search-peru/releases/latest"><img src="https://img.shields.io/github/v/release/johnbarraza/ai-job-search-peru?style=for-the-badge&label=versi%C3%B3n&color=555&cacheSeconds=3600" alt="Última versión"></a>
 </p>
 
 # AI Job Search · Edición Perú
@@ -15,7 +15,7 @@ Herramientas para buscar ofertas en portales peruanos, revisar requisitos, prepa
 **La búsqueda puede funciona sin IA (limitado).** Buscar, cruzar portales, fechar, armar la página de revisión y programar la búsqueda diaria no necesitan ningún modelo. Un agente (Claude Code, Codex o Antigravity) es opcional y suma tres cosas: evaluar el encaje con tu perfil (`/rank`), adaptar el CV y la carta (`/apply`) y preparar entrevistas (`/interview`).
 
 <p align="center">
-  <img src="assets/peru/flujo.svg" alt="Flujo en seis pasos. Sin IA: instalar.sh prepara el entorno y los portales, buscar trae las ofertas nuevas, actualizar arma la página de revisión y estado muestra los cierres próximos. Con IA, opcional: /rank evalúa el encaje con el perfil y /apply adapta el CV y la carta." width="100%">
+  <img src="assets/peru/flujo.svg" alt="Flujo en seis pasos. Sin IA: instalar_full.sh prepara el entorno y los portales, buscar trae las ofertas nuevas, actualizar arma la página de revisión y estado muestra los cierres próximos. Con IA, opcional: /rank evalúa el encaje con el perfil y /apply adapta el CV y la carta." width="100%">
 </p>
 
 ## Contenido
@@ -84,7 +84,16 @@ python -m pip install -r requirements.txt
 python tools/install_portal_clis.py
 ```
 
-O, en un solo paso, desde Git Bash (Windows) o la terminal (Mac/Linux): `bash instalar.sh`. El script crea `.venv`, instala las dependencias con versión fija y los buscadores, y avisa si falta Bun o LaTeX. No instala programas del sistema.
+**O, en un solo paso (recomendado),** desde Git Bash (Windows: clic derecho en la carpeta → *Open Git Bash here*) o la terminal (Mac/Linux):
+
+```bash
+bash instalar_full.sh
+```
+
+- **`instalar_full.sh`** instala lo que falte de Python, Bun y LaTeX (con `winget` en Windows, Homebrew en Mac, `apt` en Linux) y luego corre el básico. LaTeX ocupa varios GB; en Mac pide tu contraseña.
+- **`instalar_basico.sh`** solo crea `.venv`, instala las librerías con versión fija y los buscadores. Úsalo si ya tienes los programas, o después de un `git pull`.
+
+Ambos se pueden repetir sin riesgo.
 
 <details>
 <summary>Qué hace <code>install_portal_clis.py</code></summary>
