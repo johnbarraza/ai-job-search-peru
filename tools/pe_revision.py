@@ -44,6 +44,10 @@ ROOT = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("pe_frescura", ROOT / "tools" / "pe_frescura.py")
 pe_frescura = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pe_frescura)
+_spec = importlib.util.spec_from_file_location("pe_calificaciones", ROOT / "tools" / "pe_calificaciones.py")
+pe_calificaciones = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(pe_calificaciones)
+_SHARED_RATINGS: dict | None = None
 _spec = importlib.util.spec_from_file_location("pe_sueldo", ROOT / "tools" / "pe_sueldo.py")
 pe_sueldo = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pe_sueldo)
@@ -63,7 +67,7 @@ SECTOR_GROUPS = [
                        r"|\bminem\b|\bmef\b|\bminsa\b|\bminedu\b|\bmincetur\b|\bminam\b|\bmidis\b|\bmtpe\b|\bproduce\b"
                        r"|\bsunafil\b|\bsunarp\b|\bsunedu\b|\bsmv\b|mercado de valores|contraloria|defensoria|\breniec\b"
                        r"|\bjne\b|\bonpe\b|\binei\b|\bosce\b|\bservir\b|banco de la nacion|\bcofide\b|agrobanco|petroperu"
-                       r"|\bfonafe\b|\bsedapal\b|congreso de la republica|ministerio publico|\bmigraciones\b"),
+                       r"|\bfonafe\b|\bsedapal\b|banco agropecuario|congreso de la republica|ministerio publico|\bmigraciones\b"),
     ("Investigación y academia", r"universi|research|innovations for poverty|\bipa\b|think tank|\bgrade\b"
                                  r"|center for|centre for|instituto de estudios|growth center|academ"),
     ("ONG y organismos internacionales", r"banco mundial|world bank|banco interamericano|\bbid\b|naciones unidas|\bonu\b"
@@ -486,16 +490,29 @@ def logo_html(r: dict, classes: dict[str, str] | None = None) -> str:
     return f'<span class="logo none" aria-hidden="true">{esc(initials or "?")}</span>'
 
 
+def shared_rating(company: str) -> dict | None:
+    """The repo's shared Computrabajo rating for this company (data/calificaciones.json)."""
+    global _SHARED_RATINGS
+    if _SHARED_RATINGS is None:
+        _SHARED_RATINGS = pe_calificaciones.load(pe_calificaciones.SHARED)
+    return _SHARED_RATINGS.get(pe_calificaciones.company_key(company))
+
+
 def load_ratings(research_dir: Path, company: str) -> list[dict] | None:
+    """/rank's research ratings, plus the shared Computrabajo one when the research has none."""
     path = research_dir / company_file(company)
-    if not path.is_file():
-        return None
-    try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    ratings = ((doc.get("sources") or {}).get("reviews") or {}).get("ratings")
-    return ratings if isinstance(ratings, list) else []
+    ratings = None
+    if path.is_file():
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            found = ((doc.get("sources") or {}).get("reviews") or {}).get("ratings")
+            ratings = found if isinstance(found, list) else []
+        except (OSError, ValueError):
+            pass
+    shared = shared_rating(company)
+    if shared and not any((r or {}).get("source") == "Computrabajo" for r in ratings or []):
+        ratings = (ratings or []) + [dict(shared, note=f"leída el {_ddmmyyyy(shared.get('fecha'))}")]
+    return ratings
 
 
 LEGAL_WORDS = {"sa", "saa", "sac", "srl", "eirl", "sociedad", "anonima", "abierta", "cerrada"}
@@ -554,10 +571,10 @@ def salary_of(r: dict, salaries: dict[str, dict]) -> tuple[str, str]:
     if r.get("level") == "práctica profesional":
         low, high = (max(x, rmv) for x in PRO_INTERN_AVG)
         return (f"S/ {fmt_es(low)}–{fmt_es(high)} (neto)",
-                f"estimado · {PRO_INTERN_SRC}; mínimo legal S/ {fmt_es(rmv)}; las prácticas no tienen descuentos; el aviso no lo indica")
+                f"estimado · {PRO_INTERN_SRC}")
     if r.get("level") in INTERN_LEVELS or "practicante" in title:
         return (f"desde S/ {fmt_es(rmv)} (neto)",
-                "mínimo legal: una RMV a jornada completa; las prácticas no tienen descuentos; el aviso no lo indica")
+                "RMV")
     return "Sin dato", "el aviso no lo indica"
 
 
@@ -1016,7 +1033,7 @@ h2{font-size:18px;line-height:1.3}
 .empty{padding:36px 16px;text-align:center;color:var(--dim);background:var(--surface);border:1px dashed var(--line);border-radius:14px}
 /* one posting: a row that opens */
 .card{border-bottom:1px solid var(--line);min-width:0}.card:last-child{border-bottom:0}
-.card.is-done .row{opacity:.55}
+.card.is-done .t::before{content:"★ ";color:var(--warn)}
 .rowd{margin:0;padding:0;border:0;border-radius:0;background:transparent}
 .row{list-style:none;cursor:pointer;display:grid;grid-template-columns:var(--cols);gap:14px;align-items:center;padding:14px 18px}
 .row::-webkit-details-marker{display:none}
@@ -1126,10 +1143,12 @@ details.sec .track{margin-top:12px}
 .seen-btn:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep)}
 .seen-btn input{margin:0;width:16px;height:16px;accent-color:var(--accent)}
 .drop-btn:has(input:checked){border-color:var(--stop);background:var(--stop-bg);color:var(--stop-ink)}
-.drop-btn input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
-.drop-btn:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
-.drop-btn svg{flex:none}.drop-btn .on{display:none}
-.drop-btn:has(input:checked) .on{display:inline}.drop-btn:has(input:checked) .off{display:none}
+.drop-btn input,.save-btn input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.drop-btn:has(input:focus-visible),.save-btn:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.drop-btn svg,.save-btn svg{flex:none}.drop-btn .on,.save-btn .on{display:none}
+.drop-btn:has(input:checked) .on,.save-btn:has(input:checked) .on{display:inline}
+.drop-btn:has(input:checked) .off,.save-btn:has(input:checked) .off{display:none}
+.save-btn:has(input:checked) svg{fill:currentColor}
 .drop-btn:hover{border-color:var(--stop);color:var(--stop)}
 .card.is-drop .row{opacity:.4}.card.is-drop .t{text-decoration:line-through}
 .card.is-pick{box-shadow:inset 4px 0 0 var(--accent)}
@@ -1261,7 +1280,7 @@ JS = """
   var chipSel={nivel:''},chipButtons=Array.prototype.slice.call(document.querySelectorAll('[data-chip]'));
   if(role&&role!=='estado'&&!cards.some(function(c){return c.dataset.roles.split('|').indexOf(role)>=0;}))role='';
 
-  // "Revisada": a per-browser convenience, never written back to the state files.
+  // "Guardar" (stored as pe_revision_done, its old "Revisada" name): a per-browser convenience, never written back.
   var done=get('pe_revision_done',{});
   function count(){var c=document.getElementById('cnt');if(c)c.textContent=track.querySelectorAll('input.done:checked').length;}
   document.querySelectorAll('input.done').forEach(function(cb){
@@ -1623,7 +1642,7 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
     rubros = "|".join([group] + (["Finanzas"] if group in FINANCE_GROUPS else []))
     pay, pay_note = r.get("sueldo") or ("Sin dato", "")
     pay_txt = (f'<span class="pay" title="{esc(pay_note)}">{esc(pay if pay.startswith("desde") else "S/ " + pay if pay[:1].isdigit() else pay)}'
-               f'{" · aprox." if pay_note.startswith(("estimado", "mínimo")) else ""}</span>') if pay != "Sin dato" else ""
+               f'{" · aprox." if pay_note.startswith("estimado") or pay_note == "RMV" else ""}</span>') if pay != "Sin dato" else ""
     how =f'<div class="how"><b>Cómo:</b> {esc(r["how_to_apply"])}</div>' if r.get("how_to_apply") else ""
     applied = (f'<div class="how"><b>Postulación registrada</b>'
                f'{" · " + esc(r.get("applied_date")) if r.get("applied_date") else ""}</div>'
@@ -1657,11 +1676,20 @@ ICON_CHECK = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
               '<path d="M3 8.5l3 3 7-7"/></svg>')
 ICON_ALERT = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">'
               '<path d="M8 3v6M8 12.5v.5"/></svg>')
+ICON_BOOKMARK = ('<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" '
+                 'stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h8v11l-4-3-4 3z"/></svg>')
 ICON_TRASH = ('<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" '
               'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
               '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v5M9.2 6.5v5"/></svg>')
 ICON_OUT = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
             '<path d="M6 3h7v7M13 3L5 11M3 6v7h7"/></svg>')
+
+
+def _ddmmyyyy(value) -> str:
+    try:
+        return date.fromisoformat(str(value)[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return "?"
 
 
 def _ddmm(value) -> str:
@@ -1706,8 +1734,8 @@ def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: 
         actions += f'<a href="{esc(r["official_link"])}" target="_blank" rel="noopener noreferrer">Portal de la entidad {ICON_OUT}</a>'
     actions += word_html(r)
     actions += cv_html(r).replace('<div class="cvrow">', "").replace("</div>", "")
-    actions += (f'<label class="seen-btn"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> '
-                f'<span>Revisada</span></label>'
+    actions += (f'<label class="seen-btn save-btn" title="Para encontrarla después: Más filtros → Guardadas"><input type="checkbox" class="done" data-key="{esc(r["key"])}">'
+                f'{ICON_BOOKMARK}<span class="off">Guardar</span><span class="on">Guardada</span></label>'
                 f'<label class="seen-btn pick-btn" title="La juntas con otras y copias el pedido para el agente"><input type="checkbox" class="pick" data-key="{esc(r["key"])}"> '
                 f'<span>Hacer CV</span></label>'
                 f'<label class="seen-btn drop-btn" title="La ocultas aquí; el comando de abajo la saca de la lista para siempre"><input type="checkbox" class="drop" data-key="{esc(r["key"])}">'
@@ -1946,7 +1974,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="fl"><label for="f-district">Distrito</label><select id="f-district"><option value="">Todos los distritos</option>{district_opts}</select></div>
 <div class="fl"><label for="f-sector">Rubro</label><select id="f-sector"><option value="">Todos los rubros</option>{sector_opts}</select></div>
 <div class="fl"><label for="f-kind">Tipo de empresa</label><select id="f-kind"><option value="">Todo tipo de empresa</option>{kind_opts}</select></div>
-<div class="fl"><label for="fd">Revisadas</label><select id="fd"><option value="">Revisadas y pendientes</option><option value="pend">Solo pendientes</option><option value="done">Solo revisadas</option></select></div>
+<div class="fl"><label for="fd">Guardadas</label><select id="fd"><option value="">Guardadas y sin guardar</option><option value="done">Solo guardadas</option><option value="pend">Sin guardar</option></select></div>
 <div class="legend"><span>Confianza del dato: <span class="dots conf-alta">●●●</span> alta · <span class="dots conf-media">●●○</span> media · <span class="dots conf-baja">●○○</span> baja</span></div></details>
 <div class="legend" style="border-top:1px solid var(--line);padding-top:14px;margin-top:0">{pref_html}</div>
 </aside>
@@ -1960,7 +1988,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="track list" id="main" data-initial-focus="{esc(initial_focus)}" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
 <div class="empty" id="empty" hidden>Ninguna oferta con estos filtros.</div>
 {state_empty}
-<p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular · revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}. Dentro de cada una: <b>Hacer CV</b> la junta con otras para pedírselas al agente; <b>Descartar</b> la oculta.</p>
+<p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular · guardadas <b class="count" id="cnt">0</b> de {len(main_rows)}. Dentro de cada una: <b>Guardar</b> la marca con ★ para después; <b>Hacer CV</b> la junta con otras para pedírselas al agente; <b>Descartar</b> la oculta.</p>
 <div class="pickbar" id="pickbar" hidden role="region" aria-label="Ofertas elegidas">
 <span><b id="pk-n">0</b> para CV</span><button type="button" id="pk-copy">Copiar pedido para el agente</button>
 <span><b id="dr-n">0</b> descartadas</span><button type="button" id="dr-copy">Copiar comando para guardarlas</button>
@@ -1985,7 +2013,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <p class="fine">Frescura de la vacante: edad desde la publicación original; "≥" es un mínimo (Computrabajo reinicia la fecha al republicar);
 el vencimiento del portal no es una fecha de cierre (<code>10-peru-market.md</code>, sección 10).
 Reputación: cada calificación con su n, área y fecha; con menos de {SMALL_N} opiniones es referencial y una certificación pagada no es independiente (sección 11).
-"Revisada" se guarda solo en este navegador.</p>
+"Guardar", "Hacer CV" y "Descartar" se guardan solo en este navegador.</p>
 </main>
 <footer class="wrap-x">Un solo archivo, sin conexión: se abre con doble clic o en el teléfono. Generado por <code>tools/pe_revision.py</code> · {esc(today.isoformat())}</footer>
 <script>{JS}{CV_JS}{NUEVAS_JS}</script>

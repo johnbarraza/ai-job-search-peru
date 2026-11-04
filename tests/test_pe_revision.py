@@ -695,9 +695,24 @@ class SectorGroupsAndPayFloor(unittest.TestCase):
         value, note = pr.salary_of({"title": "Practicante de Riesgos", "level": "práctica preprofesional"}, {})
         self.assertEqual(value, f"desde S/ {pr.fmt_es(pr.pe_sueldo.PARAMS['rmv'])} (neto)")
         self.assertEqual(pr.salary_of({"title": "Practicante", "level": "práctica profesional"}, {})[0], "S/ 1.354–1.428 (neto)")
-        self.assertTrue(note.startswith("mínimo legal"))
+        self.assertEqual(note, "RMV")
         self.assertEqual(pr.salary_of({"title": "Analista de Riesgos", "level": "analista"}, {})[0], "Sin dato")
         self.assertEqual(pr.salary_of({"title": "Practicante", "salary": "S/ 1,500"}, {})[1], "según el aviso")
+
+
+class SharedRatings(unittest.TestCase):
+    def test_shared_computrabajo_rating_shows_with_its_date_when_research_has_none(self):
+        shared = {"banco agropecuario": {"source": "Computrabajo", "rating": 4.37, "n": 326, "latest": "2026-10",
+                                         "url": "https://pe.computrabajo.com/agrobanco/evaluaciones", "fecha": "2026-11-04"}}
+        with patch.object(pr, "_SHARED_RATINGS", shared):
+            ratings = pr.load_ratings(Path(tempfile.mkdtemp()), "Banco Agropecuario")
+        self.assertEqual(ratings[0]["rating"], 4.37)
+        self.assertIn("leída el 04/11/2026", pr.rating_html(ratings))
+        cal = pr.pe_calificaciones
+        self.assertEqual(cal.company_key("Banco Agropecuario S.A."), "banco agropecuario")
+        self.assertTrue(cal.same_company("Banco Central de Reserva del Perú (BCRP)", "BCRP"))
+        self.assertFalse(cal.same_company("Banco Falabella Perú", "Banco Pichincha"))
+        self.assertEqual(cal.guesses("Grupo Ripley S.A."), ["grupo-ripley-s-a", "grupo-ripley"])
 
 
 if __name__ == "__main__":

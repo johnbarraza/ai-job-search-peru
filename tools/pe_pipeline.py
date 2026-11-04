@@ -628,6 +628,8 @@ def cmd_actualizar(args) -> int:
         if args.logos:
             searches = sorted(glob.glob(str(SEARCH_DIR / "**" / "*.json"), recursive=True))
             ok &= step("Logos (descarga)", py + [str(TOOLS / "pe_logos.py"), *details, *searches])
+        if args.calificaciones:
+            ok &= step("Calificaciones de Computrabajo (descarga)", py + [str(TOOLS / "pe_calificaciones.py")])
     else:
         print(f"· sin detalles en {DETAIL_DIR}: salto duplicados, frescura y lugar")
     title = ["--titulo", args.titulo] if args.titulo else []
@@ -959,6 +961,8 @@ def main(argv=None) -> int:
     a.add_argument("--filtro-inicial", choices=("campo", "rrhh", "practicas", "estado", "otros"),
                    help="role shortcut selected when the page first opens")
     a.add_argument("--logos", action="store_true", help="also download missing employer logos (network)")
+    a.add_argument("--calificaciones", action="store_true",
+                   help="also fetch employer ratings from Computrabajo for evaluated postings (network)")
     a.add_argument("--artifact", action="store_true", help="also write the claude.ai copy and its CV manifest")
     a.add_argument("--today", type=date.fromisoformat, default=date.today())
     e = sub.add_parser("estado", help="what closes soon and what to do next")

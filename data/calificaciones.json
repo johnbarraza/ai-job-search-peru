@@ -1,0 +1,94 @@
+{
+ "fuente": "Computrabajo (páginas públicas de evaluaciones)",
+ "nota": "Una nota por empresa, con la fecha en que se leyó; tools/pe_calificaciones.py la renueva a los 30 días.",
+ "empresas": {
+  "agricola don ricardo": {
+   "empresa": "AGRICOLA DON RICARDO",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "AGRICOLA DON RICARDO",
+   "slug": "agricoladonricardo",
+   "rating": 4.48,
+   "n": 856,
+   "latest": "2026-04",
+   "url": "https://pe.computrabajo.com/agricoladonricardo/evaluaciones",
+   "fecha": "2026-11-04"
+  },
+  "auna": {
+   "empresa": "Auna",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "Grupo AUNA",
+   "slug": "auna",
+   "rating": 4.51,
+   "n": 929,
+   "latest": "2026-10",
+   "url": "https://pe.computrabajo.com/auna/evaluaciones",
+   "fecha": "2026-11-04"
+  },
+  "banco agropecuario": {
+   "empresa": "Banco Agropecuario",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "Agrobanco",
+   "slug": "agrobanco",
+   "rating": 4.37,
+   "n": 326,
+   "latest": "2026-06",
+   "url": "https://pe.computrabajo.com/agrobanco/evaluaciones",
+   "fecha": "2026-11-04"
+  },
+  "belcorp": {
+   "empresa": "Belcorp",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "Belcorp",
+   "slug": "belcorp",
+   "rating": 4.52,
+   "n": 1649,
+   "latest": "2026-01",
+   "url": "https://pe.computrabajo.com/belcorp/evaluaciones",
+   "fecha": "2026-11-04"
+  },
+  "casa andina": {
+   "empresa": "Casa Andina",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "Casa Andina",
+   "slug": "casa-andina",
+   "rating": 4.47,
+   "n": 603,
+   "latest": "2026-07",
+   "url": "https://pe.computrabajo.com/casa-andina/evaluaciones",
+   "fecha": "2026-11-04"
+  },
+  "g4s peru": {
+   "empresa": "G4S Peru SAC",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "G4S Peru SAC",
+   "slug": "g4s-peru",
+   "rating": 4.24,
+   "n": 8538,
+   "latest": "2026-10",
+   "url": "https://pe.computrabajo.com/g4s-peru/evaluaciones",
+   "fecha": "2026-11-04"
+  },
+  "manpowergroup": {
+   "empresa": "MANPOWERGROUP",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "Manpower",
+   "slug": "manpower",
+   "rating": 4.37,
+   "n": 14980,
+   "latest": "2026-09",
+   "url": "https://pe.computrabajo.com/manpower/evaluaciones",
+   "fecha": "2026-11-04"
+  },
+  "overall strategy": {
+   "empresa": "Overall Strategy",
+   "source": "Computrabajo",
+   "nombre_en_fuente": "Overall Strategy",
+   "slug": "overallstrategy",
+   "rating": 4.34,
+   "n": 10822,
+   "latest": "2026-10",
+   "url": "https://pe.computrabajo.com/overallstrategy/evaluaciones",
+   "fecha": "2026-11-04"
+  }
+ }
+}

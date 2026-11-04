@@ -72,6 +72,17 @@ python tools/pe_pipeline.py evaluar --ia claude     # o --ia agy
 
 Corre `/rank` sin supervisión con ese agente (puede tardar varios minutos), después `actualizar`, y deja todo en `reports/busqueda/diario.log`. Vuelve a abrir o recargar la página al terminar. Si la página tiene días, muestra un aviso con la fecha y cómo traer ofertas nuevas.
 
+### Calificaciones de empleadores: `actualizar --calificaciones`
+
+La página muestra la nota de cada empresa (estrellas, número de opiniones y fecha en que se leyó). Sin IA salen de Computrabajo:
+
+```powershell
+python tools/pe_pipeline.py actualizar --calificaciones                         # todas las empresas evaluadas
+python tools/pe_calificaciones.py --empresa "Banco Agropecuario" --slug agrobanco   # cuando el nombre no lleva a su página
+```
+
+Se guardan en **`data/calificaciones.json`**, un archivo del repo compartido por todos los perfiles y por quien clone el repo, con la fecha de cada nota. Solo se vuelve a consultar una empresa a los 30 días. Si una empresa no tiene página con nota en Computrabajo (pasa con varios bancos), no se inventa nada. Bumeran también califica empresas, pero solo con sesión iniciada: no se lee.
+
 ### `descartar`: sacar de la lista lo que no te interesa
 
 En la página, dentro de cada oferta, **Descartar** la oculta en ese navegador. El botón **Copiar comando** de la barra de abajo arma la línea para guardarlo en el perfil:
