@@ -8,7 +8,7 @@ by words ("rank léxico"), so the review page works for someone with no AI subsc
 
 The ficha (reports/busqueda/ficha.json, written by `pe_pipeline.py consultas`) holds careers,
 university, stage, cycle, merit, experience, English, tools, certifications and sectors. A posting
-scores up to 100 by words in its title and description: its area (35), the tools it asks for (25),
+scores up to 100 by words in its title, company and description: its area (40), the tools it asks for (20),
 the level against the stage and experience (20), English (10) and the sector (10). Formal
 requirements the ficha does not meet (cycle, merit, graduate status, English level) are not hidden
 in the score: they set eligibility_gate or language_gate to FLAG, which the page shows as
@@ -32,7 +32,7 @@ FICHA = Path("reports/busqueda/ficha.json")
 # What a text says that points to each area (accents and case folded before matching).
 AREA_HINTS = {
     "economia": ["economia", "economista", "econometr", "macroeconom", "microeconom", "politica economica", "stata", "eviews"],
-    "finanzas": ["finanzas", "financier", "valorizacion", "valuacion", "banca", "inversion", "riesgo", "tesoreria",
+    "finanzas": ["finanzas", "financier", "valorizacion", "valuacion", "banca", "banco", "bancari", "inversion", "riesgo", "tesoreria",
                  "credito", "mercado de capitales", "cfa", "bloomberg", "modelamiento financiero"],
     "contabilidad": ["contabilidad", "contable", "contador", "auditoria", "niif", "nic ", "tributacion", "tributari"],
     "administracion": ["administracion", "gestion empresarial", "negocios", "business", "emprendimiento"],
@@ -69,8 +69,9 @@ UNIVERSITIES = [  # (words to find, name to show)
     ("universidad catolica san pablo", "UCSP"), ("universidad nacional de san agustin", "UNSA"),
 ]
 ENGLISH_ORDER = {"basico": 1, "intermedio": 2, "avanzado": 3, "nativo": 4}
-ENGLISH_WORDS = {"basico": 1, "elemental": 1, "a1": 1, "a2": 1, "intermedio": 2, "b1": 2, "b2": 3, "avanzado": 3,
-                 "fluido": 3, "c1": 3, "c2": 4, "nativo": 4, "bilingue": 4}
+ENGLISH_WORDS = {"basico": 1, "elemental": 1, "basic": 1, "a1": 1, "a2": 1, "intermedio": 2, "intermediate": 2, "b1": 2,
+                 "b2": 3, "avanzado": 3, "advanced": 3, "fluido": 3, "fluent": 3, "profesional": 3, "professional": 3,
+                 "proficient": 3, "c1": 3, "c2": 4, "nativo": 4, "native": 4, "bilingue": 4}
 MERIT_ORDER = {"decimo": 1, "quinto": 2, "tercio": 3, "medio": 4, "ninguno": 9}
 CYCLE_TOP = {"1-4": 4, "5-6": 6, "7-8": 8, "9+": 10}
 EXPERIENCE_YEARS = {"ninguna": 0, "practicas": 0.5, "menos1": 0.5, "1-3": 2, "3-5": 4, "5+": 6}
@@ -99,8 +100,7 @@ def cv_text(path: Path) -> str:
 
 def english_level(text: str) -> str | None:
     """The English level a text states ("inglés avanzado", "English B2"), or None."""
-    m = re.search(r"\b(?:ingles|english)\b[^.;\n]{0,40}?\b(basico|elemental|intermedio|avanzado|fluido|nativo|bilingue|"
-                  r"a1|a2|b1|b2|c1|c2)\b", text)
+    m = re.search(r"\b(?:ingles|english)\b[^.;\n]{0,40}?\b(" + "|".join(ENGLISH_WORDS) + r")\b", text)
     if not m:
         return None
     n = ENGLISH_WORDS[m.group(1)]
@@ -138,7 +138,7 @@ def load_json(path: Path, default):
 
 def posting_text(entry: dict) -> str:
     """Title plus the saved detail's description, when the search saved one."""
-    parts = [entry.get("title") or "", entry.get("level") or ""]
+    parts = [entry.get("title") or "", entry.get("level") or "", entry.get("company") or ""]
     detail = entry.get("detail")
     if detail and Path(detail).is_file():
         doc = load_json(Path(detail), {})
@@ -173,36 +173,36 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
     eligibility, notes = "PASS", []
     total = 0
 
-    # Area (35): the candidate's careers in the title weigh most.
+    # Area (40): the candidate's careers in the title weigh most.
     areas = [a for a in (ficha.get("carreras") or []) if a in AREA_HINTS]
     in_title = [a for a in areas if any(h in title for h in AREA_HINTS[a])]
     in_text = {a: sum(text.count(h) for h in AREA_HINTS[a]) for a in areas}
     if in_title:
-        total += 35
+        total += 40
         strengths.append(f"El puesto es de tu área ({', '.join(in_title)})")
     elif any(n >= 2 for n in in_text.values()):
-        total += 25
+        total += 28
         strengths.append(f"El aviso menciona tu área ({', '.join(a for a, n in in_text.items() if n >= 2)})")
     elif any(in_text.values()):
-        total += 12
+        total += 14
     elif areas:
         gaps.append("El aviso no menciona tu área")
     else:
         total += 15  # no careers in the ficha: neutral
 
-    # Tools (25): what the posting asks for against what the candidate has.
+    # Tools (20; 8 when it asks for none): what the posting asks for against what the candidate has.
     asked = [k for k, hints in TOOL_HINTS.items() if any(h in text for h in hints)]
     have = set(ficha.get("herramientas") or [])
     if asked:
         matched = [k for k in asked if k in have]
-        total += round(25 * len(matched) / len(asked))
+        total += round(20 * len(matched) / len(asked))
         if matched:
             strengths.append("Tienes lo que pide: " + ", ".join(TOOL_NAMES[k] for k in matched))
         missing = [k for k in asked if k not in have]
         if missing:
             gaps.append("Pide " + ", ".join(TOOL_NAMES[k] for k in missing) + " (no está en tu ficha)")
     else:
-        total += 18
+        total += 8
 
     # Level (20): stage, cycle, graduate status, experience.
     stage, level_points = ficha.get("etapa"), 20
@@ -251,11 +251,11 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
         else:
             strengths.append(f"Cumples el mérito que pide ({need_merit} superior)")
 
-    # English (10).
+    # English (10; 6 when the posting does not mention it).
     need_en, language_gate, language_note = english_level(text), "PASS", None
     mine_en = ficha.get("ingles")
     if not need_en:
-        total += 10
+        total += 6
     elif mine_en and ENGLISH_ORDER.get(mine_en, 0) >= ENGLISH_ORDER[need_en]:
         total += 10
         strengths.append(f"Tu inglés ({mine_en}) cubre el que pide ({need_en})")
@@ -273,8 +273,10 @@ def score(entry: dict, ficha: dict, employer_type=None) -> dict:
     # Sector (10).
     sectors = set(ficha.get("sectores") or [])
     kind = employer_type(entry) if employer_type else None
-    if not sectors or not kind or kind in sectors or (kind == "otros" and "otros" in sectors):
+    if sectors and kind in sectors:
         total += 10
+    elif not sectors or not kind:
+        total += 6  # no preference, or the employer is unknown
     else:
         gaps.append("No es del sector que elegiste")
 

@@ -77,6 +77,20 @@ python tools/pe_pipeline.py consultas --q "practicante riesgos, analista de cré
 
 `leer-cv` lee el texto de un PDF, Word (`.docx`) o `.txt` y busca palabras de cada área (por ejemplo «valorización», «riesgo» o «tesorería» para finanzas, «Python» o «SQL» para datos), la etapa (estudiante, egresado o bachiller), el ciclo y el mérito (décimo, quinto, tercio o medio superior). Es una lectura por palabras, sin IA: lo que no está claro lo deja vacío, y revísalo en el resumen de `empezar.sh`.
 
+### Modo sin IA: la ficha y el puntaje por palabras (`pe_lexico.py`)
+
+Para quien no tiene suscripción de IA. `empezar.sh` arma la ficha (`reports/busqueda/ficha.json`) con preguntas, y el CV es opcional: carrera, universidad, etapa, ciclo, mérito, experiencia, inglés, herramientas (Excel, Power BI, SQL, Python, R, Stata, EViews, Bloomberg, IA...), certificaciones (CFA, FRM...), sector, modalidad y lugar.
+
+```powershell
+python tools/pe_pipeline.py evaluar --ia lexico     # puntúa las nuevas y rehace la página
+python tools/pe_lexico.py rank --todas              # repuntúa también las que ya puntuó (tras cambiar la ficha)
+python tools/pe_pipeline.py programar --hora "8:00 am" --ia lexico
+```
+
+Cada oferta suma hasta 100 por palabras de su título, empresa y descripción: área (40), herramientas que pide (20), nivel frente a tu etapa y experiencia (20), inglés (10) y sector (10). Lo que la ficha no cumple (ciclo, mérito, ser egresado, nivel de inglés) no se esconde en el número: deja la oferta en «Confirmar antes» con la nota. Guarda los mismos campos que `/rank` y `rank_method: lexico`; la página lo marca «sin IA» y nunca la descarta sola (las de puntaje bajo van a «Si hay tiempo»). Si luego tienes IA, `/rank` puede volver a puntuarlas.
+
+Limitaciones: lee palabras, no entiende. Un aviso sin descripción se puntúa solo por el título, y palabras con dos sentidos («riesgo», «crédito») pueden sumar de más.
+
 ### `evaluar`: pasar las nuevas por `/rank` sin abrir el agente
 
 Las ofertas que trae `buscar` quedan en **Nuevas sin evaluar** (el recuadro naranja de arriba en la página) hasta que pasan por `/rank`. Sin eso no tienen puntaje y no aparecen en «Para decidir». La página trae un botón que copia este comando:

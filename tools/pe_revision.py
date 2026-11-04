@@ -241,6 +241,8 @@ def action_for(entry: dict, fresh: dict | None, today: date | None = None) -> st
         return "ya" if (fresh or {}).get("window") == "fresca" else "pronto"
     if verdict == "Moderate Fit":
         return "tiempo"
+    if entry.get("rank_method") == "lexico":
+        return "tiempo"  # a word match is not sure enough to discard on its own: the user decides
     return "descartar"
 
 
