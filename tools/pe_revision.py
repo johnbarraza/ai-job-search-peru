@@ -1912,11 +1912,15 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     for r in data["ranked"]:
         r["abroad_excluded"] = abroad_excluded(r, pref["mode"])
         excluded += bool(r["abroad_excluded"] and r in main_rows)
+    # The same short wording for every profile: the profile's own Abroad text (often specific
+    # to one person's roles, or in English) stays in CLAUDE.md.
+    pref_hint = {"no": "Solo ofertas en el Perú. ¿Te interesa trabajar o mudarte afuera?",
+                 "remoto": "Del extranjero, solo las remotas. ¿Te mudarías o viajarías?",
+                 "viajar": "Incluye ofertas del extranjero, también presenciales. ¿Ya no quieres moverte?"}[pref["mode"]]
     pref_html = (
-        f'<div class="pref"><span>Búsqueda en Lima, Perú · fuera del Perú: <b>{esc(ABROAD_LABEL[pref["mode"]])}</b>'
-        f' <span class="dim">· {esc(pref["text"]) if pref.get("text") else "el perfil no pide buscar en el extranjero"}'
-        f' (línea <code>Abroad</code> de <code>CLAUDE.md</code>; cámbiala ahí o con <code>/setup</code>)</span></span>'
-        f'<label class="done-l"><input type="checkbox" id="fx"> '
+        f'<div class="pref"><span>Fuera del Perú: <b>{esc(ABROAD_LABEL[pref["mode"]])}</b>'
+        f' <span class="dim">· {esc(pref_hint)} Cámbialo con <code>/setup</code>.</span></span>'
+        f'<label class="done-l"{"" if excluded else " hidden"}><input type="checkbox" id="fx"> '
         f'Mostrar también las del extranjero que tu perfil deja fuera ({excluded})</label></div>'
     )
     coverage = coverage_html(data.get("cobertura"))

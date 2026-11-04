@@ -567,7 +567,8 @@ class Abroad(unittest.TestCase):
         data["abroad_pref"] = {"mode": "remoto", "text": "remote only"}
         page = pr.render(data, date(2026, 10, 18), None)
         self.assertEqual(page.count('data-excl="1"'), 1)
-        self.assertIn("fuera del Perú: <b>solo remoto</b>", page)
+        self.assertIn("Fuera del Perú: <b>solo remoto</b>", page)
+        self.assertNotIn("remote only", page.split("<main", 1)[1])  # the profile's own wording stays in CLAUDE.md
         self.assertIn("Extranjero · Santiago, Chile · no remoto", page)
         data["abroad_pref"] = {"mode": "no", "text": None}
         self.assertEqual(pr.render(data, date(2026, 10, 18), None).count('data-excl="1"'), 2)
