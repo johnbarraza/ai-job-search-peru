@@ -645,6 +645,38 @@ def cmd_actualizar(args) -> int:
     return 0 if ok else 1
 
 
+def cmd_consultas(args) -> int:
+    """A first reports/busqueda/consultas.json from a few search phrases (empezar.sh asks them):
+    every phrase on Bumeran, Computrabajo and LinkedIn, the first three on Prácticas.pe and SERVIR.
+    Refuses to overwrite one that exists, unless --reemplazar."""
+    spec = importlib.util.spec_from_file_location("perfiles", TOOLS / "perfiles.py")
+    perfiles = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(perfiles)
+    starter = load_config(args.consultas) == perfiles.STARTER_QUERIES  # perfiles.py crear's example
+    if args.es_ejemplo:  # for empezar.sh: 0 = nothing of the user's yet (missing or the example)
+        return 0 if starter or not args.consultas.exists() else 1
+    if args.consultas.exists() and not starter and not args.reemplazar:
+        print(f"ya existe {args.consultas}: no lo toco (edítalo, o usa --reemplazar)")
+        return 0
+    phrases = [q.strip() for q in ",".join(args.q).split(",") if q.strip()]
+    if not phrases:
+        print('falta qué buscar, por ejemplo: --q "practicante finanzas, analista de riesgos"', file=sys.stderr)
+        return 1
+    city = args.ciudad.strip() or "Lima"
+    queries = ([{"portal": p, "q": q, "l": city} for p in ("bumeran", "computrabajo") for q in phrases]
+               + [{"portal": "linkedin", "q": q, "l": f"{city}, Peru"} for q in phrases]
+               + [{"portal": "practicas-pe", "q": q, "l": city} for q in phrases[:3]]
+               + [{"portal": "talento-peru", "q": q, "l": city, "tipo": "laboral"} for q in phrases[:3]]
+               + [{"portal": "talento-peru", "q": "", "l": city, "tipo": "practicas"}])
+    cfg = {"jobage": 14, "excluir_titulo": ["senior", "jefe", "gerente", "director"] + args.excluir,
+           "consultas_manuales": phrases[:8], "consultas": queries}
+    args.consultas.parent.mkdir(parents=True, exist_ok=True)
+    args.consultas.write_text(json.dumps(cfg, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"{len(queries)} búsquedas en {args.consultas} ({', '.join(phrases)} · {city}). "
+          "Puedes editarlo cuando quieras (formato en docs/PIPELINE.md).")
+    return 0
+
+
 def cmd_descartar(args) -> int:
     """Postings discarded on the review page ("Descartar" -> "Copiar comando"): status "skipped" in
     seen_jobs.json, so they leave the page and later searches skip them. --deshacer restores them."""
@@ -986,7 +1018,16 @@ def main(argv=None) -> int:
     ev = sub.add_parser("evaluar", help="/rank the postings not yet evaluated with an agent CLI, then actualizar")
     ev.add_argument("--ia", choices=sorted(IA), default="claude", help="agent CLI that runs /rank (default claude)")
     ev.add_argument("--titulo", help="name in the page heading")
+    cq = sub.add_parser("consultas", help="write a first consultas.json from a few search phrases")
+    cq.add_argument("--q", action="append", default=[], help='phrases, comma-separated: "practicante finanzas, analista"')
+    cq.add_argument("--ciudad", default="Lima", help="city (default Lima)")
+    cq.add_argument("--excluir", action="append", default=[], help="extra title words to leave out")
+    cq.add_argument("--reemplazar", action="store_true", help="overwrite an existing consultas.json")
+    cq.add_argument("--es-ejemplo", action="store_true", help="exit 0 when there is none yet or only perfiles.py's example")
+    cq.add_argument("--consultas", type=Path, default=SEARCH_DIR / "consultas.json")
     args = ap.parse_args(argv)
+    if args.cmd == "consultas":
+        return cmd_consultas(args)
     if args.cmd == "evaluar":
         return cmd_evaluar(args)
     if args.cmd == "descartar":

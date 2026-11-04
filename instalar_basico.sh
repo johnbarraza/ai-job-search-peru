@@ -8,7 +8,9 @@ cd "$(dirname "$0")"
 VENV="${VENV:-.venv}"
 STEP=0 NAME=""
 paso() { STEP=$((STEP + 1)) NAME="$1"; echo; echo "  ($STEP/3) $NAME"; }
-trap 'echo; echo "ERROR en ($STEP/3) $NAME. Lee el mensaje de arriba, corrige y vuelve a correr: bash instalar_basico.sh" >&2' ERR
+# Opened with a double click the window closes at the end: wait for Enter so the result can be read.
+pausa() { if [ -t 0 ] && [ -z "${NO_PAUSA:-}" ]; then echo; read -r -p "Presiona Enter para cerrar esta ventana..." _ || true; fi; }
+trap 'echo; echo "ERROR en ($STEP/3) $NAME. Lee el mensaje de arriba, corrige y vuelve a correr: bash instalar_basico.sh" >&2; pausa' ERR
 
 paso "buscar Python"
 python=""
@@ -42,10 +44,18 @@ else
 fi
 command -v lualatex >/dev/null 2>&1 || echo "Aviso: falta LaTeX (lualatex); solo hace falta para generar los CV en PDF."
 
-if [ -f "$VENV/bin/activate" ]; then activate="source $VENV/bin/activate"; else activate="$VENV\\Scripts\\Activate.ps1  (PowerShell)  o  source $VENV/Scripts/activate  (Git Bash)"; fi
+if [ -f "$VENV/bin/activate" ]; then activate="source $VENV/bin/activate"; else activate="$VENV\Scripts\Activate.ps1  (PowerShell)  o  source $VENV/Scripts/activate  (Git Bash)"; fi
 cat <<EOF
 
-Listo. En cada terminal nueva, activa el entorno antes de usar las herramientas:
-  $activate
-Luego sigue en docs/INSTALAR.md, paso 7 (perfil) y paso 8 (uso diario).
+Listo: quedó instalado. Todavía no busca nada; faltan 2 pasos (detalle en docs/INSTALAR.md, pasos 7 y 8):
+
+  1. Crea tu perfil (tu CV y lo que buscas). Con un agente: abre Claude Code en esta carpeta y escribe /setup
+     Sin agente:  python tools/perfiles.py crear <tu-nombre>   y completa perfiles/<tu-nombre>/CLAUDE.md
+  2. Busca y abre la página:
+       cd perfiles/<tu-nombre>
+       python tools/pe_pipeline.py diario
+     La página queda en perfiles/<tu-nombre>/reports/revision-ofertas.html (ábrela con doble clic).
+
+En cada terminal nueva, activa antes el entorno:  $activate
 EOF
+pausa

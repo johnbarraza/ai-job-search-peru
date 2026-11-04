@@ -492,5 +492,23 @@ class Evaluar(unittest.TestCase):
         self.assertEqual(calls[1][-3:], ["actualizar", "--titulo", "Ana"])
 
 
+class Consultas(unittest.TestCase):
+    def test_writes_queries_from_phrases_and_replaces_only_the_example(self):
+        spec = importlib.util.spec_from_file_location("perfiles", pp.TOOLS / "perfiles.py")
+        perfiles = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(perfiles)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("sys.stdout", new=io.StringIO()):
+            path = Path(tmp) / "consultas.json"
+            path.write_text(json.dumps(perfiles.STARTER_QUERIES), encoding="utf-8")
+            self.assertEqual(pp.main(["consultas", "--es-ejemplo", "--consultas", str(path)]), 0)
+            self.assertEqual(pp.main(["consultas", "--q", "practicante finanzas, analista", "--ciudad", "Arequipa",
+                                      "--consultas", str(path)]), 0)
+            cfg = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIn({"portal": "linkedin", "q": "analista", "l": "Arequipa, Peru"}, cfg["consultas"])
+            self.assertEqual(pp.main(["consultas", "--es-ejemplo", "--consultas", str(path)]), 1)
+            pp.main(["consultas", "--q", "otra cosa", "--consultas", str(path)])  # the user's own: kept
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), cfg)
+
+
 if __name__ == "__main__":
     unittest.main()

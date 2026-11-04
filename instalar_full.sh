@@ -6,6 +6,7 @@
 # Todo lo que muestra queda también en instalar.log.
 set -eu
 cd "$(dirname "$0")"
+exec 3>&1 4>&2  # the terminal itself, for empezar.sh (Claude Code needs it, not the log pipe)
 exec > >(tee -a instalar.log) 2>&1
 echo "== $(date '+%d/%m/%Y %H:%M') · instalar_full.sh =="
 
@@ -16,7 +17,8 @@ paso() {
   echo; echo "[$bar] paso $STEP de $TOTAL: $NAME"
 }
 trap 'echo; echo "ERROR en el paso $STEP de $TOTAL ($NAME). El detalle está arriba y en instalar.log." >&2
-      echo "Corrige lo que dice y vuelve a correr: bash instalar_full.sh (salta lo que ya quedó instalado)." >&2' ERR
+      echo "Corrige lo que dice y vuelve a correr: bash instalar_full.sh (salta lo que ya quedó instalado)." >&2
+      if [ -t 0 ]; then echo; read -r -p "Presiona Enter para cerrar esta ventana..." _ || true; fi' ERR
 
 has_python() {
   for cmd in python3 python py; do
@@ -78,4 +80,14 @@ paso "entorno de Python y buscadores (instalar_basico.sh)"
 missing bun && echo "  Aviso: Bun aún no aparece; si acabas de instalarlo, abre una terminal nueva y repite." >&2
 missing lualatex && echo "  Aviso: LaTeX aún no aparece; si acabas de instalarlo, abre una terminal nueva y repite." >&2
 trap - ERR
-bash instalar_basico.sh
+NO_PAUSA=1 bash instalar_basico.sh
+# Then straight on: profile, what to search, first search, the page, the daily run.
+if [ -t 0 ]; then
+  echo
+  read -r -p "¿Seguir ahora con tu perfil y la primera búsqueda? [S/n] " seguir || seguir=n
+  if [ "$seguir" != "n" ]; then exec bash empezar.sh 1>&3 2>&4; fi
+  echo "Cuando quieras: bash empezar.sh"
+  read -r -p "Presiona Enter para cerrar esta ventana..." _ || true
+else
+  echo "Siguiente: bash empezar.sh"
+fi

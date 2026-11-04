@@ -20,7 +20,7 @@ Herramientas para buscar ofertas en portales peruanos, revisar requisitos, prepa
 
 ## Contenido
 
-- [Inicio rápido](#inicio-rápido)
+- [Inicio rápido](#inicio-rápido) · [el camino corto: dos scripts](#el-camino-corto-dos-scripts)
 - [El flujo, paso a paso](#el-flujo-paso-a-paso)
 - [Comandos](#comandos)
 - [Cómo funciona `/apply`](#cómo-funciona-apply)
@@ -34,6 +34,41 @@ Herramientas para buscar ofertas en portales peruanos, revisar requisitos, prepa
 ## Inicio rápido
 
 ¿Primera vez con Python o con una terminal? Sigue [docs/INSTALAR.md](docs/INSTALAR.md). Explica cada paso desde cero, para Windows y Mac.
+
+### El camino corto: dos scripts
+
+Necesitas **Git** instalado ([cómo](#qué-necesitas)) y, si vas a usar IA, **Claude Code o `agy` ya instalado y con sesión iniciada** ([docs/AGENTES_IA.md](docs/AGENTES_IA.md)). Lo demás lo hacen los scripts.
+
+1. **Descarga** el proyecto (`git clone`, o el [ZIP](https://github.com/johnbarraza/ai-job-search-peru/releases/latest/download/ai-job-search-peru.zip) descomprimido).
+2. **Corre `instalar_full.sh`**: doble clic en el archivo (Windows) o, en la carpeta del proyecto, clic derecho → *Open Git Bash here* y `bash instalar_full.sh` (Mac/Linux: en la terminal). No como administrador.
+3. **Responde lo que pregunta.** Al terminar de instalar ofrece seguir con `empezar.sh` (Enter = sí), que hace el resto:
+
+| Paso | Qué hace | Qué te pide | Cuánto tarda |
+|---|---|---|---|
+| `instalar_full.sh` 1/5 a 4/5 | Revisa el sistema e instala lo que falte: Python, Bun, LaTeX | Permiso de Windows (ventana) o tu contraseña en Mac, si hace falta | 5 a 30 min la primera vez (LaTeX es lo más pesado); segundos si ya estaba |
+| `instalar_full.sh` 5/5 | `.venv`, librerías y buscadores de portales (`instalar_basico.sh`) | Nada | 1 a 3 min |
+| `empezar.sh` 1/5 | Crea tu perfil en `perfiles/<tu-nombre>/` | Tu nombre | Segundos |
+| `empezar.sh` 2/5 | Si tienes Claude Code, lo abre con `/setup`: tu CV, tus datos, qué buscas | Responder a Claude; al terminar, `/exit` y el script sigue | 10 a 20 min |
+| `empezar.sh` 3/5 | Arma tus búsquedas (`consultas.json`) | Puestos separados por comas y ciudad | Segundos |
+| `empezar.sh` 4/5 | Primera búsqueda en todos los portales y la página de revisión, que se abre sola | Nada | 5 a 15 min |
+| `empezar.sh` 5/5 | Programa la búsqueda diaria; opcional: que Claude evalúe las nuevas cada día | La hora (Enter = no programar) | Segundos |
+
+**Si se detiene o lo cierras:** vuelve a correr el mismo script. Cada uno salta lo que ya quedó hecho (programas instalados, perfil creado, búsquedas definidas), así que no pierdes nada.
+
+| Pasó esto | Haz esto |
+|---|---|
+| Dice `ERROR en el paso N`, con el motivo arriba | Corrige lo que dice (por ejemplo, internet o permiso) y vuelve a correr el mismo script. El detalle queda en `instalar.log` |
+| «Bun aún no aparece» o «LaTeX aún no aparece» | Recién instalados: cierra la ventana, abre otra y corre de nuevo `bash instalar_full.sh` |
+| Cerraste la ventana durante la instalación | `bash instalar_full.sh` |
+| Ya instaló, pero no seguiste (o cerraste) en `empezar.sh` | `bash empezar.sh` |
+| La primera búsqueda se cortó o un portal falló | En `perfiles/<tu-nombre>`: `python tools/pe_pipeline.py diario` (retoma lo que faltó ese día) |
+| La PC estaba apagada a la hora de la búsqueda diaria | Nada: corre sola al iniciar sesión |
+| Quieres cambiar qué buscas | Edita `perfiles/<tu-nombre>/reports/busqueda/consultas.json`, o en el perfil: `python tools/pe_pipeline.py consultas --q "..." --reemplazar` |
+| Quieres cambiar la hora de la búsqueda diaria | En el perfil: `python tools/pe_pipeline.py programar --hora "7:00 am"` (`--quitar` la elimina) |
+
+**Después, cada día:** abre `perfiles/<tu-nombre>/reports/revision-ofertas.html`. Si arriba aparece el recuadro naranja de **nuevas sin evaluar**, su botón copia el comando que las pasa por `/rank` con Claude o `agy`. En cada oferta: **Guardar**, **Hacer CV** (te copia el pedido para el agente) o **Descartar**.
+
+Los pasos que siguen hacen lo mismo a mano, uno por uno.
 
 ### Qué necesitas
 
@@ -93,6 +128,8 @@ bash instalar_full.sh
 - **`instalar_full.sh`** instala lo que falte de Python, Bun y LaTeX (con `winget` en Windows, Homebrew en Mac, `apt` en Linux) y luego corre el básico. LaTeX ocupa varios GB; en Mac pide tu contraseña.
 - **Ábrelo como usuario normal, no como administrador.** Instala para tu usuario; si un programa necesita permiso, Windows lo pide en una ventana. Muestra el avance (`[###--] paso 3 de 5`) y guarda todo en `instalar.log`.
 - **Si falla**, dice en qué paso y por qué. Corrige eso y vuelve a correrlo: salta lo que ya quedó instalado.
+- **Al terminar sigue solo** con `empezar.sh` (o córrelo tú después: `bash empezar.sh`): te pide tu nombre y crea tu perfil, abre Claude Code con `/setup` si lo tienes, pregunta qué puestos buscas y en qué ciudad, hace la primera búsqueda, abre la página y te ofrece programar la búsqueda diaria.
+- **¿Doble clic?** En Windows, Git suele asociar los `.sh` a Git Bash: doble clic en `instalar_full.sh` funciona y la ventana espera un Enter antes de cerrarse. Si se abre con otro programa, usa clic derecho en la carpeta → *Open Git Bash here* y escribe el comando.
 - **`instalar_basico.sh`** solo crea `.venv`, instala las librerías con versión fija y los buscadores. Úsalo si ya tienes los programas, o después de un `git pull`.
 
 Ambos se pueden repetir sin riesgo.
