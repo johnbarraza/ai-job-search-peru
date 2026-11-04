@@ -515,23 +515,37 @@ class Consultas(unittest.TestCase):
             path, profile = Path(tmp) / "consultas.json", Path(tmp) / "CLAUDE.md"
             profile.write_text("- **Target level:** [YOUR_TARGET_LEVEL]\n- **Work mode preference:** [YOUR_WORK_MODE_PREFERENCE]\n"
                                "- **Abroad:** [YOUR_ABROAD]\n- **Location:** [YOUR_CITY], [YOUR_COUNTRY]\n", encoding="utf-8")
-            self.assertEqual(pp.main(["consultas", "--q", "practicante finanzas", "--sector", "privado,publico",
+            # No typing: the phrases come from the stage and the chosen areas.
+            self.assertEqual(pp.main(["consultas", "--area", "finanzas,economia", "--sector", "privado,publico",
                                       "--modalidad", "hibrido", "--lugar", "afuera-remoto", "--etapa", "estudiante",
+                                      "--ciclo", "7-8", "--merito", "quinto",
                                       "--consultas", str(path), "--perfil", str(profile)]), 0)
             qs = json.loads(path.read_text(encoding="utf-8"))["consultas"]
             self.assertIn({"portal": "bumeran", "q": "practicante finanzas", "l": "Lima"}, qs)  # hybrid: no filter
-            self.assertIn({"portal": "practicas-pe", "q": "practicante finanzas", "l": "Lima"}, qs)
+            self.assertIn({"portal": "computrabajo", "q": "practicante economía", "l": "Lima"}, qs)
+            self.assertIn({"portal": "practicas-pe", "q": "finanzas", "l": "Lima"}, qs)
             self.assertIn({"portal": "talento-peru", "q": "", "l": "Lima", "tipo": "practicas"}, qs)
             self.assertIn({"portal": "linkedin", "q": "practicante finanzas", "l": "Latin America", "remote": "remote"}, qs)
             self.assertFalse(any(q["portal"] == "talento-peru" and q.get("tipo") == "laboral" for q in qs))  # a student
             self.assertNotIn("research assistant", [q["q"] for q in qs])  # research was not chosen
             text = profile.read_text(encoding="utf-8")
-            for want in ("práctica preprofesional", "híbrido", "solo remoto fuera del Perú", "Lima, Perú"):
+            for want in ("práctica preprofesional", "híbrido", "solo remoto fuera del Perú", "Lima, Perú",
+                         "- **Ciclo:** 7.º u 8.º ciclo", "- **Mérito académico:** Quinto superior"):
                 self.assertIn(want, text)
-            # Only the public sector, for a professional: SERVIR's laboral search, nothing private.
-            pp.main(["consultas", "--q", "analista", "--sector", "publico", "--etapa", "profesional",
+            # Only the public sector, for a professional: SERVIR's laboral search, nothing private;
+            # and lines already written are not added twice.
+            pp.main(["consultas", "--sector", "publico", "--etapa", "profesional", "--merito", "tercio",
                      "--reemplazar", "--consultas", str(path), "--perfil", str(profile)])
             self.assertEqual({q["portal"] for q in json.loads(path.read_text(encoding="utf-8"))["consultas"]}, {"talento-peru"})
+            self.assertEqual(profile.read_text(encoding="utf-8").count("Mérito académico"), 1)
+
+    def test_every_question_can_be_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("sys.stdout", new=io.StringIO()):
+            path = Path(tmp) / "consultas.json"
+            self.assertEqual(pp.main(["consultas", "--consultas", str(path), "--perfil", str(Path(tmp) / "none.md")]), 0)
+            qs = json.loads(path.read_text(encoding="utf-8"))["consultas"]
+            self.assertEqual({q["portal"] for q in qs}, {"bumeran", "computrabajo", "linkedin", "practicas-pe", "talento-peru"})
+            self.assertIn({"portal": "bumeran", "q": "practicante", "l": "Lima"}, qs)
 
 
 if __name__ == "__main__":

@@ -653,10 +653,23 @@ MODE_TEXT = {"remoto": "remoto", "hibrido": "híbrido", "presencial": "presencia
 ABROAD_TEXT = {"lima": "no: solo en el Perú", "peru": "no: solo en el Perú",
                "afuera-remoto": "solo remoto fuera del Perú", "afuera": "dispuesto a mudarme o viajar"}
 RESEARCH_PHRASES = ["asistente de investigación", "research assistant"]
+# empezar.sh's area menu: key -> the word the portals are searched with.
+AREAS = {"economia": "economía", "finanzas": "finanzas", "contabilidad": "contabilidad",
+         "administracion": "administración", "industrial": "ingeniería industrial", "datos": "datos",
+         "marketing": "marketing", "derecho": "derecho", "rrhh": "recursos humanos",
+         "ingenieria": "ingeniería", "comunicaciones": "comunicaciones"}
+# The role word each stage searches with, before the area ("practicante finanzas").
+STAGE_WORDS = {"estudiante": ["practicante"], "egresado": ["practicante", "analista junior"],
+               "profesional": ["analista"], None: ["practicante", "analista"]}
+CYCLE_TEXT = {"1-4": "1.º a 4.º ciclo", "5-6": "5.º o 6.º ciclo", "7-8": "7.º u 8.º ciclo",
+              "9+": "9.º ciclo o más (último año)"}
+MERIT_TEXT = {"decimo": "Décimo superior", "quinto": "Quinto superior", "tercio": "Tercio superior",
+              "medio": "Medio superior", "ninguno": "ninguno (sin décimo, quinto ni tercio superior)"}
 
 
-def fill_profile(path: Path, values: dict[str, str]) -> list[str]:
-    """Write the answers into the profile's CLAUDE.md where its template placeholders still are;
+def fill_profile(path: Path, values: dict[str, str], lines: dict[str, str] | None = None) -> list[str]:
+    """Write the answers into the profile's CLAUDE.md where its template placeholders still are,
+    and add `- **Label:** value` lines (ciclo, mérito) after the Target level line when absent;
     what /setup (or the user) already wrote is never touched."""
     try:
         text = path.read_text(encoding="utf-8")
@@ -665,18 +678,25 @@ def fill_profile(path: Path, values: dict[str, str]) -> list[str]:
     done = [k for k, v in values.items() if v and k in text]
     for k in done:
         text = text.replace(k, values[k], 1)
+    anchor = re.search(r"^- \*\*Target level:\*\*.*$", text, re.M)
+    new = {label: value for label, value in (lines or {}).items() if value and f"**{label}:**" not in text}
+    if anchor and new:
+        text = text[:anchor.end()] + "".join(f"\n- **{k}:** {v}" for k, v in new.items()) + text[anchor.end():]
+        done += list(new)
     if done:
         path.write_text(text, encoding="utf-8")
     return done
 
 
 def cmd_consultas(args) -> int:
-    """A first reports/busqueda/consultas.json from empezar.sh's answers: the sectors (privado,
-    publico, investigacion, otros), the work mode, where (Lima, another Peruvian city, also abroad
-    remote or moving), the stage (estudiante, egresado, profesional) and a few search phrases.
-    Private and other employers search Bumeran, Computrabajo and LinkedIn (and Prácticas.pe for
-    interns); the public sector, SERVIR; research adds research-assistant phrases. The answers
-    also fill the profile's CLAUDE.md placeholders (level, work mode, abroad, city).
+    """A first reports/busqueda/consultas.json from empezar.sh's answers, every one optional: the
+    sectors (privado, publico, investigacion, otros), the stage (estudiante, egresado, profesional),
+    the areas, the work mode and where (Lima, another Peruvian city, also abroad remote or moving).
+    No typing needed: the phrases are the stage's role word plus each area ("practicante finanzas");
+    --q adds phrases of one's own. Only the chosen sectors are searched: private and other
+    employers on Bumeran, Computrabajo and LinkedIn (and Prácticas.pe for interns), the public
+    sector on SERVIR, research with research-assistant phrases. The answers, ciclo and mérito
+    included, also fill the profile's CLAUDE.md where it is still empty.
     Refuses to overwrite a file of the user's, unless --reemplazar."""
     spec = importlib.util.spec_from_file_location("perfiles", TOOLS / "perfiles.py")
     perfiles = importlib.util.module_from_spec(spec)
@@ -694,10 +714,14 @@ def cmd_consultas(args) -> int:
     # hybrid or on-site filter would drop them. Those preferences go to the profile for /rank and the page.
     remote = "remote" if modes == ["remoto"] else None
     stage = args.etapa
-    intern = stage in ("estudiante", "egresado")
-    phrases = split(args.q)
+    intern = stage != "profesional"  # an unanswered stage searches internships too
+    areas = [AREAS[a] for a in split(args.area) if a in AREAS]
+    words = STAGE_WORDS[stage]
+    phrases = split(args.q) or ([f"{w} {a}" for a in areas for w in words] if areas else list(words))
     if "investigacion" in sectors:
-        phrases += [p for p in RESEARCH_PHRASES if p not in phrases]
+        phrases += RESEARCH_PHRASES
+    phrases = list(dict.fromkeys(phrases))[:10]
+    by_area = areas[:3] or [""]  # Prácticas.pe and SERVIR search a career or field word, or everything
     city = args.ciudad.strip() or "Lima"
     queries: list[dict] = []
     if sectors & {"privado", "otros", "investigacion"}:
@@ -705,7 +729,7 @@ def cmd_consultas(args) -> int:
         queries += [{"portal": p, "q": q, "l": city, **mode} for p in ("bumeran", "computrabajo") for q in phrases]
         queries += [{"portal": "linkedin", "q": q, "l": f"{city}, Peru", **mode} for q in phrases]
         if intern:
-            queries += [{"portal": "practicas-pe", "q": q, "l": city} for q in phrases[:3]]
+            queries += [{"portal": "practicas-pe", "q": q, "l": city} for q in by_area]
         if args.lugar in ("afuera-remoto", "afuera"):
             abroad = {"remote": "remote"} if args.lugar == "afuera-remoto" else {}
             queries += [{"portal": "linkedin", "q": q, "l": "Latin America", **abroad} for q in phrases[:3]]
@@ -713,10 +737,7 @@ def cmd_consultas(args) -> int:
         if intern:
             queries.append({"portal": "talento-peru", "q": "", "l": city, "tipo": "practicas"})
         if stage != "estudiante":
-            queries += [{"portal": "talento-peru", "q": q, "l": city, "tipo": "laboral"} for q in phrases[:3]]
-    if not queries:
-        print('falta qué buscar, por ejemplo: --q "practicante finanzas, analista de riesgos"', file=sys.stderr)
-        return 1
+            queries += [{"portal": "talento-peru", "q": q, "l": city, "tipo": "laboral"} for q in by_area]
     exclude = ["senior", "jefe", "gerente", "director"] + (["coordinador", "supervisor"] if intern else [])
     cfg = {"jobage": 14, "excluir_titulo": exclude + args.excluir, "consultas_manuales": phrases[:8], "consultas": queries}
     args.consultas.parent.mkdir(parents=True, exist_ok=True)
@@ -726,11 +747,17 @@ def cmd_consultas(args) -> int:
         "[YOUR_WORK_MODE_PREFERENCE]": " o ".join(MODE_TEXT[m] for m in modes) if modes else
                                         ("presencial, híbrido o remoto" if split(args.modalidad) else ""),
         "[YOUR_ABROAD]": ABROAD_TEXT.get(args.lugar or "", ""),
-        "[YOUR_CITY]": city if args.lugar else "", "[YOUR_COUNTRY]": "Perú" if args.lugar else ""})
-    print(f"{len(queries)} búsquedas en {args.consultas} ({', '.join(phrases) or 'SERVIR'} · {city}"
-          + (f" · {modes[0]}" if remote else "") + "). Puedes editarlo cuando quieras (formato en docs/PIPELINE.md).")
+        "[YOUR_CITY]": city if args.lugar else "", "[YOUR_COUNTRY]": "Perú" if args.lugar else ""},
+        {"Ciclo": CYCLE_TEXT.get(args.ciclo or "", ""), "Mérito académico": MERIT_TEXT.get(args.merito or "", "")})
+    where = {"privado": "privado", "publico": "público", "investigacion": "investigación", "otros": "otros"}
+    print(f"{len(queries)} búsquedas en {args.consultas} · sector {', '.join(where[s] for s in sorted(sectors) if s in where)}"
+          + (f" · {', '.join(phrases[:4])}{'…' if len(phrases) > 4 else ''}" if sectors - {"publico"} else "")
+          + f" · {city}" + (" · solo remoto" if remote else "")
+          + ". Puedes editarlo cuando quieras (formato en docs/PIPELINE.md).")
     if filled:
-        print(f"  también en {args.perfil}: nivel, modalidad y dónde buscar (solo lo que estaba vacío)")
+        names = {"[YOUR_TARGET_LEVEL]": "nivel", "[YOUR_WORK_MODE_PREFERENCE]": "modalidad", "[YOUR_ABROAD]": "fuera del Perú",
+                 "[YOUR_CITY]": "ciudad", "[YOUR_COUNTRY]": None, "Ciclo": "ciclo", "Mérito académico": "mérito"}
+        print(f"  también en {args.perfil}: {', '.join(n for k in filled if (n := names.get(k, k)))} (solo lo que estaba vacío)")
     return 0
 
 
@@ -1082,6 +1109,9 @@ def main(argv=None) -> int:
     cq.add_argument("--modalidad", action="append", default=[], help="remoto,presencial,hibrido or cualquiera")
     cq.add_argument("--lugar", choices=sorted(ABROAD_TEXT), help="lima, peru (another city), afuera-remoto, afuera")
     cq.add_argument("--etapa", choices=sorted(STAGE_LEVEL), help="estudiante, egresado or profesional")
+    cq.add_argument("--area", action="append", default=[], help=f"areas, comma-separated: {', '.join(AREAS)}")
+    cq.add_argument("--ciclo", choices=sorted(CYCLE_TEXT), help="a student's cycle: 1-4, 5-6, 7-8, 9+")
+    cq.add_argument("--merito", choices=sorted(MERIT_TEXT), help="decimo, quinto, tercio, medio or ninguno")
     cq.add_argument("--perfil", type=Path, default=Path("CLAUDE.md"), help="profile CLAUDE.md to fill in")
     cq.add_argument("--excluir", action="append", default=[], help="extra title words to leave out")
     cq.add_argument("--reemplazar", action="store_true", help="overwrite an existing consultas.json")
