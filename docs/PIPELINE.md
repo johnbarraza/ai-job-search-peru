@@ -86,9 +86,18 @@ python tools/pe_pipeline.py programar --quitar                      # quita la t
 | `--ia agy` / `--ia claude` | Entre la búsqueda y la página, corre `/rank` sin supervisión con esa CLI. |
 | `--titulo` | El nombre del encabezado de la página. |
 
-- **Windows:** crea «AI Job Search Peru <perfil>» en el Programador de tareas. Si a esa hora la laptop estaba apagada o suspendida, corre al encenderla, también con batería. Se abre una ventana de consola mientras corre.
-- **(Mac)** crea `~/Library/LaunchAgents/pe.aijobsearch.<perfil>.plist` con el PATH de tu terminal, para que encuentre `bun` y `agy`. **(Linux)** imprime la línea para `crontab -e`.
+- **Windows:** crea «AI Job Search Peru <perfil>» en el Programador de tareas. Corre a diario a esa hora y también al iniciar sesión, con batería o sin ella. Mientras corre se abre una ventana de consola.
+- **(Mac)** crea `~/Library/LaunchAgents/pe.aijobsearch.<perfil>.plist` con el PATH de tu terminal, para que encuentre `bun` y `agy`. Corre a esa hora y al iniciar sesión. **(Linux)** imprime la línea para `crontab -e`.
 - Si el reloj del equipo no está en hora de Perú, `programar` lo avisa y convierte la hora al reloj del equipo.
+- **La hora la eliges tú.** Para cambiarla, vuelve a correr `programar` con otra `--hora`: reemplaza la tarea.
+
+**Si se apaga o se corta, se retoma.** `diario` anota cada paso terminado en `reports/busqueda/diario-estado.json`.
+
+- **Corrida cortada:** si se cerró la ventana, se apagó la PC o falló un paso, la siguiente corrida del mismo día sigue desde el paso pendiente. Puede ser al iniciar sesión o a mano con `python tools/pe_pipeline.py diario`. En el registro queda «retoma la corrida de las …».
+- **PC apagada a la hora programada:** la búsqueda de ese día corre al iniciar sesión.
+- **Inicio de sesión sin nada pendiente:** antes de la hora, o si hoy ya corrió, no hace nada.
+- **Corrida a medias de otro día:** no se retoma; empieza una corrida nueva completa.
+- **`/rank` pendiente:** las ofertas que no alcanzó a evaluar siguen como `new` en `seen_jobs.json` y entran en la siguiente evaluación.
 
 **Antigravity (`--ia agy`).** Corre `agy -p "<sigue .claude/commands/rank.md>" --output-format json`. Necesita haber iniciado sesión una vez con `agy` interactivo. No usa `--dangerously-skip-permissions`: lo que tus reglas no permiten, agy lo salta, sigue y termina con código 0, avisando en stderr. Ese aviso queda en el registro. Para que `/rank` pueda guardar sus resultados, permite en `~/.gemini/antigravity-cli/settings.json` (`permissions.allow`) solo lo que usa:
 
