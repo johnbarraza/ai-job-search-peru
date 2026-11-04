@@ -18,6 +18,13 @@ stay with the model):
               claude.ai copy.
   estado      what closes soon and what to do next, from reports/revision-ofertas.json;
               --json prints it as data.
+  diario      buscar --detalle --registrar, then (with --ia agy|claude) /rank run headless by
+              that CLI, then actualizar; every line also goes to reports/busqueda/diario.log,
+              stamped DD/MM/AAAA and 12-hour Peru time.
+  programar   register `diario` as a daily task (Windows Task Scheduler, macOS launchd; on
+              Linux it prints the crontab line). --hora takes Peru time (UTC-5) in 12- or
+              24-hour form ("8:00 am", "7:30 p. m.", "20:30"); --utc reads it as UTC instead.
+              --quitar removes the task.
 
 Abroad: the search is in Lima, Peru. A query placed abroad runs only when the profile's
 `Abroad:` line (CLAUDE.md) asks for it: "remote only" runs it with `--remote remote`, and
@@ -34,6 +41,7 @@ Usage (from the profile folder, e.g. perfiles/<nombre>):
     python tools/pe_pipeline.py actualizar --titulo "Tu Nombre"
     python tools/pe_pipeline.py estado
     python tools/pe_pipeline.py portales
+    python tools/pe_pipeline.py programar --hora "8:00 am" --ia agy
 """
 
 import argparse
@@ -41,12 +49,14 @@ import glob
 import importlib.util
 import json
 import os
+import plistlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -84,6 +94,22 @@ LINKEDIN_REFRESH = timedelta(hours=20)  # one run a day, even if today's starts 
 LINKEDIN_429_BACKOFF = timedelta(hours=48)
 PAGED = {"linkedin", "bumeran", "computrabajo", "bolsa-universidad"}  # CLIs that take --page
 MAX_PAGES = 10
+# Peru keeps UTC-5 all year (no daylight saving since 1994), so a fixed offset is exact and needs
+# no tz database (Windows Python ships none).
+PERU = timezone(timedelta(hours=-5), "UTC-5")
+DAILY_LOG = SEARCH_DIR / "diario.log"
+TASK_NAME = "AI Job Search Peru"
+# `diario --ia`: /rank run headless by the agent CLI. No flag here widens what the agent may do:
+# each CLI applies the user's own permission rules, and what they do not allow is skipped and logged.
+RANK_PROMPT = ("Ejecuta el flujo /rank definido en .claude/commands/rank.md sobre este perfil, sin argumentos. "
+               "Corres sin supervisión: no hagas preguntas, no postules ni envíes nada; si un paso necesita "
+               "confirmación o un permiso que no tienes, sáltalo y dilo en el resumen final. Si no puedes "
+               "lanzar subagentes, puntúa tú mismo las ofertas con el mismo procedimiento.")
+IA = {
+    "agy": ["agy", "-p", RANK_PROMPT, "--output-format", "json", "--print-timeout", "60m"],
+    "claude": ["claude", "-p", "/rank"],
+}
+IA_TIMEOUT = 65 * 60
 
 # Every portal the search covers. `cli` portals run in
 # `buscar`; the others get a search link per manual query ({q} is the query). A profile can
@@ -650,6 +676,158 @@ def estado(path: Path, as_json: bool, limit: int = 10) -> int:
     return 0
 
 
+def parse_hora(text: str) -> tuple[int, int]:
+    """'8', '8:30', '08:30', '20:30', '8am', '7:30 p. m.' -> (hour, minute) on the 24-hour clock."""
+    m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?([ap]m)?", re.sub(r"[\s.]", "", text.lower()))
+    hour, minute, half = (int(m[1]), int(m[2] or 0), m[3]) if m else (99, 0, None)
+    if hour > 23 or minute > 59 or (half and not 1 <= hour <= 12):
+        raise argparse.ArgumentTypeError(f"hora no válida: {text!r} (ejemplos: 8:00 am, 7:30 p. m., 20:30)")
+    return (hour % 12 + (12 if half == "pm" else 0) if half else hour), minute
+
+
+def hora_12(t) -> str:
+    """A datetime or time -> '8:05 a. m.', the way Peru writes the 12-hour clock."""
+    return f"{t.hour % 12 or 12}:{t.minute:02d} {'a. m.' if t.hour < 12 else 'p. m.'}"
+
+
+def fecha_hora(dt: datetime) -> str:
+    """'04/11/2026 8:05 a. m.' (DD/MM/AAAA) in Peru time, whatever the PC's clock zone."""
+    dt = dt.astimezone(PERU)
+    return f"{dt:%d/%m/%Y} {hora_12(dt)}"
+
+
+def next_run(hour: int, minute: int, utc: bool, now: datetime) -> datetime:
+    """The next moment the clock in Peru (or UTC) reads hour:minute, as an aware datetime."""
+    at = now.astimezone(timezone.utc if utc else PERU).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return at if at > now else at + timedelta(days=1)
+
+
+def cmd_diario(args) -> int:
+    py = [sys.executable, "-X", "utf8", str(Path(__file__).resolve())]
+    steps = [("Búsqueda", py + ["buscar", "--detalle", "--registrar"])]
+    if args.ia:
+        steps.append((f"Evaluación /rank con {args.ia}", IA[args.ia]))
+    steps.append(("Página y estado", py + ["actualizar"] + (["--titulo", args.titulo] if args.titulo else [])))
+    DAILY_LOG.parent.mkdir(parents=True, exist_ok=True)
+    ok = True
+    with DAILY_LOG.open("a", encoding="utf-8") as log:
+        def out(line: str) -> None:
+            print(line)
+            log.write(line + "\n")
+            log.flush()
+
+        out(f"== {fecha_hora(datetime.now(PERU))} (hora de Perú, UTC-5) · {Path.cwd().name} ==")
+        for label, cmd in steps:
+            out(f"· {label}")
+            exe = shutil.which(cmd[0])
+            if not exe:
+                out(f"  falló: no encuentro «{cmd[0]}» en el PATH")
+                ok = False
+                continue
+            try:
+                proc = subprocess.run([exe, *cmd[1:]], capture_output=True, text=True, encoding="utf-8",
+                                      errors="replace", timeout=IA_TIMEOUT if cmd is IA.get(args.ia) else None)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                out(f"  falló: {exc}")
+                ok = False
+                continue
+            text = proc.stdout
+            if cmd[0] == "agy":  # --output-format json: {"status": "SUCCESS", "response": "...", ...}
+                try:
+                    reply = json.loads(proc.stdout)
+                    text = f'{reply.get("status")}\n{reply.get("response") or ""}'
+                    ok &= reply.get("status") == "SUCCESS"
+                except ValueError:
+                    pass
+            for line in (text + "\n" + proc.stderr).splitlines():
+                if line.strip():
+                    out("  " + line)
+            if cmd[0] == "agy" and proc.stderr.strip():
+                out("  (si arriba agy nombra una herramienta sin permiso, la saltó y terminó igual: ver docs/PIPELINE.md, «diario»)")
+            ok &= proc.returncode == 0
+        out("== terminado " + ("sin errores" if ok else "con errores") + " ==\n")
+    return 0 if ok else 1
+
+
+def cmd_programar(args) -> int:
+    cwd = Path.cwd()
+    name = f"{TASK_NAME} {slug(cwd.name)}"
+    label = "pe.aijobsearch." + slug(cwd.name)
+    plist = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
+    if args.quitar:
+        if sys.platform == "win32":
+            proc = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                   f"Unregister-ScheduledTask -TaskName '{name}' -Confirm:$false"], capture_output=True, text=True)
+            if proc.returncode:
+                print(f"no pude quitar «{name}»: {proc.stderr.strip()[:300]}", file=sys.stderr)
+                return 1
+        elif sys.platform == "darwin":
+            subprocess.run(["launchctl", "unload", str(plist)], capture_output=True)
+            plist.unlink(missing_ok=True)
+        else:
+            print("En Linux quita la línea de `crontab -e`.")
+            return 0
+        print(f"Tarea diaria quitada: {name}")
+        return 0
+    if not args.hora:
+        print("falta --hora (ejemplos: --hora \"8:00 am\", --hora 20:30)", file=sys.stderr)
+        return 2
+    if not (cwd / SEARCH_DIR / "consultas.json").is_file():
+        print(f"no hay {SEARCH_DIR / 'consultas.json'} aquí: corre programar desde la carpeta del perfil", file=sys.stderr)
+        return 2
+    if args.ia and not shutil.which(args.ia):
+        print(f"no encuentro «{args.ia}» en el PATH", file=sys.stderr)
+        return 2
+    run = next_run(*args.hora, args.utc, datetime.now(timezone.utc))
+    local = run.astimezone()  # the PC's own clock, which is what the scheduler reads
+    cmd = [sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "diario"]
+    cmd += (["--ia", args.ia] if args.ia else []) + (["--titulo", args.titulo] if args.titulo else [])
+    if sys.platform == "win32":
+        q = lambda s: "'" + str(s).replace("'", "''") + "'"  # PowerShell single-quoted string
+        script = (
+            f"$a = New-ScheduledTaskAction -Execute {q(cmd[0])} -Argument {q(subprocess.list2cmdline(cmd[1:]))}"
+            f" -WorkingDirectory {q(cwd)}; "
+            f"$t = New-ScheduledTaskTrigger -Daily -At ([datetime]::Today.AddHours({local.hour}).AddMinutes({local.minute})); "
+            # A laptop that was off or asleep at that hour runs it when it wakes, also on battery.
+            "$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries"
+            " -ExecutionTimeLimit (New-TimeSpan -Hours 3); "
+            f"Register-ScheduledTask -TaskName {q(name)} -Action $a -Trigger $t -Settings $s -Force"
+            f" -Description {q('python tools/pe_pipeline.py diario en ' + str(cwd))} | Out-Null")
+        proc = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                              capture_output=True, text=True)
+        if proc.returncode:
+            print(f"no pude crear la tarea: {proc.stderr.strip()[:400]}", file=sys.stderr)
+            return 1
+        where = f"Programador de tareas de Windows: «{name}»"
+    elif sys.platform == "darwin":
+        plist.parent.mkdir(parents=True, exist_ok=True)
+        with plist.open("wb") as f:
+            plistlib.dump({"Label": label, "ProgramArguments": cmd, "WorkingDirectory": str(cwd),
+                           "StartCalendarInterval": {"Hour": local.hour, "Minute": local.minute},
+                           # launchd starts with a bare PATH: keep this shell's so bun and agy are found.
+                           "EnvironmentVariables": {"PATH": os.environ.get("PATH", "")},
+                           "StandardErrorPath": str(cwd / SEARCH_DIR / "diario-launchd.err")}, f)
+        subprocess.run(["launchctl", "unload", str(plist)], capture_output=True)
+        proc = subprocess.run(["launchctl", "load", "-w", str(plist)], capture_output=True, text=True)
+        if proc.returncode:
+            print(f"no pude cargar {plist}: {proc.stderr.strip()[:400]}", file=sys.stderr)
+            return 1
+        where = f"launchd: {plist}"
+    else:
+        print("Agrega esta línea con `crontab -e`:")
+        print(f"{local.minute} {local.hour} * * * cd {shlex.quote(str(cwd))} && {shlex.join(cmd)}")
+        where = "cron"
+    peru, utc = run.astimezone(PERU), run.astimezone(timezone.utc)
+    print(f"Búsqueda diaria: {hora_12(peru)} hora de Perú (UTC-5) = {utc:%H:%M} UTC"
+          + (f" · luego /rank con {args.ia}" if args.ia else ""))
+    print(f"Primera corrida: {fecha_hora(run)} · {where}")
+    if local.utcoffset() != PERU.utcoffset(None):
+        print(f"Ojo: el reloj de este equipo no está en hora de Perú; la tarea queda a las {local:%H:%M} de su reloj"
+              " y, si su zona cambia de horario de verano, se correrá una hora.")
+    print(f"Registro: {cwd / DAILY_LOG}")
+    return 0
+
+
 def main(argv=None) -> int:
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
@@ -679,7 +857,20 @@ def main(argv=None) -> int:
     e = sub.add_parser("estado", help="what closes soon and what to do next")
     e.add_argument("--json", action="store_true", help="print it as JSON (for a model or another script)")
     e.add_argument("--file", type=Path, default=REVIEW_JSON)
+    d = sub.add_parser("diario", help="buscar, then optional /rank by an agent CLI, then actualizar; logged")
+    d.add_argument("--ia", choices=sorted(IA), help="agent CLI that runs /rank headless between the two")
+    d.add_argument("--titulo", help="name in the page heading")
+    pg = sub.add_parser("programar", help="run `diario` every day (Windows Task Scheduler, macOS launchd)")
+    pg.add_argument("--hora", type=parse_hora, help='Peru time: "8:00 am", "7:30 p. m.", "20:30"')
+    pg.add_argument("--utc", action="store_true", help="read --hora as UTC instead of Peru time")
+    pg.add_argument("--ia", choices=sorted(IA), help="also run /rank with this agent CLI")
+    pg.add_argument("--titulo", help="name in the page heading")
+    pg.add_argument("--quitar", action="store_true", help="remove the daily task")
     args = ap.parse_args(argv)
+    if args.cmd == "diario":
+        return cmd_diario(args)
+    if args.cmd == "programar":
+        return cmd_programar(args)
     if args.cmd == "buscar":
         return cmd_buscar(args)
     if args.cmd == "portales":

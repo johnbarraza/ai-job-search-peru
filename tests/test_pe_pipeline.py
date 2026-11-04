@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -335,6 +336,76 @@ class Estado(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             self.assertEqual(pp.estado(Path(tempfile.mkdtemp()) / "none.json", as_json=False), 1)
         self.assertIn("actualizar", err.getvalue())
+
+
+class Horario(unittest.TestCase):
+    def test_parse_hora_takes_12_and_24_hour_forms(self):
+        for text, want in [("8", (8, 0)), ("08:30", (8, 30)), ("20:30", (20, 30)), ("8am", (8, 0)),
+                           ("7:30 p. m.", (19, 30)), ("8:30 PM", (20, 30)), ("12am", (0, 0)), ("12:15 p.m.", (12, 15))]:
+            self.assertEqual(pp.parse_hora(text), want, text)
+        for bad in ("13pm", "0am", "25:00", "8:60", "ocho"):
+            with self.assertRaises(pp.argparse.ArgumentTypeError):
+                pp.parse_hora(bad)
+
+    def test_next_run_is_peru_time_or_utc_and_rolls_to_tomorrow(self):
+        now = pp.datetime(2026, 11, 4, 14, 0, tzinfo=pp.timezone.utc)  # 9:00 a. m. in Peru
+        self.assertEqual(pp.fecha_hora(pp.next_run(8, 0, False, now)), "05/11/2026 8:00 a. m.")
+        self.assertEqual(pp.fecha_hora(pp.next_run(20, 30, False, now)), "04/11/2026 8:30 p. m.")
+        self.assertEqual(pp.next_run(13, 0, True, now), pp.datetime(2026, 11, 5, 13, 0, tzinfo=pp.timezone.utc))
+        self.assertEqual(pp.hora_12(pp.datetime(2026, 1, 1, 0, 5)), "12:05 a. m.")
+
+
+class Diario(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, self.cwd)
+        (self.tmp / "reports" / "busqueda").mkdir(parents=True)
+        (self.tmp / "reports" / "busqueda" / "consultas.json").write_text('{"consultas": []}', encoding="utf-8")
+        self.calls = []
+
+    def fake_run(self, agy_reply):
+        def run(cmd, **kw):
+            self.calls.append(cmd)
+            if cmd[0].endswith("agy"):
+                return pp.subprocess.CompletedProcess(cmd, 0, json.dumps(agy_reply), "")
+            if cmd[0] == "powershell":
+                return pp.subprocess.CompletedProcess(cmd, 0, "", "")
+            return pp.subprocess.CompletedProcess(cmd, 0, "ok\n", "")
+        return run
+
+    def run_main(self, argv, agy_reply=None):
+        with mock.patch.object(pp.subprocess, "run", self.fake_run(agy_reply or {})), \
+             mock.patch.object(pp.shutil, "which", lambda name: name), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            code = pp.main(argv)
+        return code, out.getvalue()
+
+    def test_diario_runs_buscar_then_agy_rank_then_actualizar_and_logs(self):
+        code, _ = self.run_main(["diario", "--ia", "agy"], {"status": "SUCCESS", "response": "3 evaluadas"})
+        self.assertEqual(code, 0)
+        self.assertEqual([c[4] if c[0] != "agy" else "agy" for c in self.calls], ["buscar", "agy", "actualizar"])
+        self.assertNotIn("--dangerously-skip-permissions", self.calls[1])
+        log = (self.tmp / pp.DAILY_LOG).read_text(encoding="utf-8")
+        self.assertRegex(log, r"== \d\d/\d\d/\d{4} \d{1,2}:\d\d [ap]\. m\. \(hora de Perú, UTC-5\)")
+        self.assertIn("3 evaluadas", log)
+
+    def test_diario_fails_when_agy_does_not_succeed(self):
+        code, _ = self.run_main(["diario", "--ia", "agy"], {"status": "ERROR", "response": ""})
+        self.assertEqual(code, 1)
+
+    @unittest.skipUnless(pp.sys.platform == "win32", "Task Scheduler")
+    def test_programar_registers_a_daily_task_at_the_pcs_clock(self):
+        code, out = self.run_main(["programar", "--hora", "8:00 am", "--ia", "agy"])
+        self.assertEqual(code, 0)
+        script = self.calls[0][-1]
+        local = pp.next_run(8, 0, False, pp.datetime.now(pp.timezone.utc)).astimezone()
+        self.assertIn(f"AddHours({local.hour}).AddMinutes({local.minute})", script)
+        self.assertIn("-StartWhenAvailable", script)
+        self.assertIn("diario --ia agy", script)
+        self.assertIn(f"-WorkingDirectory '{self.tmp}'", script)
+        self.assertIn("8:00 a. m. hora de Perú (UTC-5) = 13:00 UTC", out)
 
 
 if __name__ == "__main__":

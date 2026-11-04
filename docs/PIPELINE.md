@@ -62,6 +62,50 @@ La página ofrece atajos por tipo de puesto (Trabajo de campo, RR. HH., Práctic
 
 Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cómo postular y si ya hay CV a medida) y las primeras ofertas para postular. `--json` imprime lo mismo como datos, junto con las que aún no tienen CV.
 
+### `diario` y `programar`: la búsqueda todos los días, sola
+
+`diario` corre `buscar --detalle --registrar`, luego (opcional) `/rank` con un agente y al final `actualizar`. Cada línea queda también en `reports/busqueda/diario.log`, con fecha DD/MM/AAAA y hora de Perú en 12 horas:
+
+```
+== 05/11/2026 8:00 a. m. (hora de Perú, UTC-5) · john ==
+```
+
+`programar` deja `diario` como tarea diaria del sistema. Córrelo una vez desde la carpeta del perfil:
+
+```powershell
+python tools/pe_pipeline.py programar --hora "8:00 am"              # solo búsqueda y página, sin IA
+python tools/pe_pipeline.py programar --hora "7:30 p. m." --ia agy  # además /rank con Antigravity CLI
+python tools/pe_pipeline.py programar --hora 13:00 --utc            # la hora en UTC (= 8:00 a. m. en Perú)
+python tools/pe_pipeline.py programar --quitar                      # quita la tarea
+```
+
+| Opción | Qué hace |
+|---|---|
+| `--hora` | Hora de Perú (UTC-5 todo el año). Acepta `8`, `8:30`, `20:30`, `8am`, `7:30 p. m.`. |
+| `--utc` | Lee `--hora` en UTC. La salida muestra las dos horas. |
+| `--ia agy` / `--ia claude` | Entre la búsqueda y la página, corre `/rank` sin supervisión con esa CLI. |
+| `--titulo` | El nombre del encabezado de la página. |
+
+- **Windows:** crea «AI Job Search Peru <perfil>» en el Programador de tareas. Si a esa hora la laptop estaba apagada o suspendida, corre al encenderla, también con batería. Se abre una ventana de consola mientras corre.
+- **(Mac)** crea `~/Library/LaunchAgents/pe.aijobsearch.<perfil>.plist` con el PATH de tu terminal, para que encuentre `bun` y `agy`. **(Linux)** imprime la línea para `crontab -e`.
+- Si el reloj del equipo no está en hora de Perú, `programar` lo avisa y convierte la hora al reloj del equipo.
+
+**Antigravity (`--ia agy`).** Corre `agy -p "<sigue .claude/commands/rank.md>" --output-format json`. Necesita haber iniciado sesión una vez con `agy` interactivo. No usa `--dangerously-skip-permissions`: lo que tus reglas no permiten, agy lo salta, sigue y termina con código 0, avisando en stderr. Ese aviso queda en el registro. Para que `/rank` pueda guardar sus resultados, permite en `~/.gemini/antigravity-cli/settings.json` (`permissions.allow`) solo lo que usa:
+
+```json
+"allow": [
+  "command(python tools/rank_state.py)",
+  "command(python tools/posting_guard.py)",
+  "command(python tools/fetch_page.py)",
+  "command(bun run .agents/skills/)",
+  "write_file(C:/Users/<tu usuario>/AppData/Local/Temp/)"
+]
+```
+
+Si tu modo por defecto de agy es `auto`, aprueba solo las ediciones dentro del proyecto. Las ofertas son texto ajeno, así que revisa `git status` en la carpeta del perfil después de las primeras corridas.
+
+**Claude Code (`--ia claude`).** Corre `claude -p /rank` con los permisos de `.claude/settings.json`. Lo que no esté permitido (por ejemplo, el archivo temporal del paso 4 de `/rank`) se rechaza y queda en el registro.
+
 ## `consultas.json`
 
 ```json
