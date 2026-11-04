@@ -60,6 +60,10 @@ SECTOR_GROUPS = [
     ("Sector público", r"ministerio|municipalidad|gobierno regional|superintendencia|banco central de reserva|\bbcrp\b"
                        r"|\bsunat\b|\bsbs\b|\bindecopi\b|\bosinergmin\b|\bosiptel\b|\bsunass\b|\bproinversion\b|poder judicial"
                        r"|\bseguro social\b|\bessalud\b|organismo|\bentidad publica\b|administracion publica"),
+    ("Investigación y academia", r"universi|research|innovations for poverty|\bipa\b|think tank|\bgrade\b"
+                                 r"|center for|centre for|instituto de estudios|growth center|academ"),
+    ("ONG y organismos internacionales", r"banco mundial|world bank|banco interamericano|\bbid\b|naciones unidas|\bonu\b"
+                                         r"|unicef|\bpnud\b|\bundp\b|\bfao\b|\boit\b|\bong\b|fundacion|world vision|cooperacion"),
     ("Banca de inversión", r"investment bank|banca de inversion|corporate finance|finanzas corporativas|\bm&a\b"
                            r"|capital markets|mercado de capitales|\badvisors?\b|\bbtg\b|jp ?morgan|goldman|lazard|moelis"),
     ("Fondos e inversiones", r"asset management|administradora de fondos|fondos? de inversion|private equity|venture capital"
@@ -79,8 +83,6 @@ SECTOR_GROUPS = [
     ("Energía y minería", r"energ|miner|mining|petrol|\bgas\b|electric|hidrocarb|\boil\b"),
     ("Telecom y tecnología", r"telecom|tecnolog|software|information technology|\bit services\b|\bclaro\b|america movil"
                              r"|\bentel\b|movistar|telefonica"),
-    ("Investigación y academia", r"universi|research|investigacion|innovations for poverty|\bipa\b|think tank|\bgrade\b"
-                                 r"|center for|centre for|instituto de estudios|growth center|academ|education|educacion"),
     ("Salud", r"salud|health|clinica|hospital|farmac|laboratorio"),
     ("Logística y transporte", r"logistic|transporte|transport|distribucion|courier|aerolinea|naviera|vehiculos|automotriz"),
 ]
@@ -101,6 +103,34 @@ def sector_group(r: dict) -> str:
     text = _fold(f"{label} | {r.get('company') or ''}")
     return next((group for group, pattern in SECTOR_GROUPS if re.search(pattern, text)), "Otros")
 
+
+RESEARCH_TITLE = re.compile(r"research (assistant|analyst|fellow|associate)|pre-?doc|asistente de investigaci|investigador", re.I)
+EMPLOYER_TYPES = [("privado", "Sector privado"), ("estado", "Sector público"), ("investigacion", "Investigación (research)"),
+                  ("otros", "Otros")]
+
+
+def employer_type(r: dict) -> str:
+    """privado / estado / investigacion / otros: who the employer is, for the "Tipo de puesto" row."""
+    group = sector_group(r)
+    if group == "Sector público":
+        return "estado"
+    if (group == "Investigación y academia" or r.get("level") == "asistente de investigación"
+            or RESEARCH_TITLE.search(r.get("title") or "")):
+        return "investigacion"
+    rubro = (r.get("context") or {}).get("rubro") or {}
+    company = _fold(r.get("company") or "").strip()
+    if group == "ONG y organismos internacionales" or rubro.get("anonymous") or not company \
+            or re.search(r"confidencial|reservad", company):
+        return "otros"
+    return "privado"
+
+
+# Internships with no stated pay. Preprofesional: the legal floor (one RMV at the full 30 h/week).
+# Profesional: the market average, "entre 1,354 y 1,428 soles mensuales" (estudio Best Internship
+# Experiences Perú 2025, La República 11/09/2025), never below the RMV. A subvención carries no
+# pension or EsSalud deduction (pe_sueldo.py, regimen practicas), so what is shown is also net.
+PRO_INTERN_AVG = (1354, 1428)
+PRO_INTERN_SRC = "promedio de practicantes profesionales, estudio Best Internship Experiences Perú 2025 (La República, 11/09/2025)"
 
 SHORTLIST = ("Strong Fit", "Good Fit")
 ACTIONS = [  # (key, label, css class) in priority order
@@ -139,6 +169,12 @@ def role_tags(r: dict) -> list[str]:
     if "practic" in title or "práctica" in (r.get("level") or "").lower():
         tags.append("practicas")
     return list(dict.fromkeys(tags)) or ["otros"]
+
+
+def card_roles(r: dict) -> list[str]:
+    """The "Tipo de puesto" keys a card answers to: its employer type, plus the field-work and HR
+    shortcuts a profile may focus on (filtro_inicial)."""
+    return [employer_type(r)] + [t for t in role_tags(r) if t in ("campo", "rrhh")]
 
 
 def link(url, text) -> str:
@@ -509,9 +545,14 @@ def salary_of(r: dict, salaries: dict[str, dict]) -> tuple[str, str]:
     if best:
         (_, count), role, cat = best
         return str(cat.get("index")), f"estimado MyWorkIn · {role} · {count} aporte{'s' if count != 1 else ''}"
+    rmv = pe_sueldo.PARAMS["rmv"]
+    if r.get("level") == "práctica profesional":
+        low, high = (max(x, rmv) for x in PRO_INTERN_AVG)
+        return (f"S/ {fmt_es(low)}–{fmt_es(high)} (neto)",
+                f"estimado · {PRO_INTERN_SRC}; mínimo legal S/ {fmt_es(rmv)}; las prácticas no tienen descuentos; el aviso no lo indica")
     if r.get("level") in INTERN_LEVELS or "practicante" in title:
-        return (f"desde S/ {fmt_es(pe_sueldo.PARAMS['rmv'])}",
-                "mínimo legal de la subvención de prácticas a jornada completa (una RMV); el aviso no lo indica")
+        return (f"desde S/ {fmt_es(rmv)} (neto)",
+                "mínimo legal: una RMV a jornada completa; las prácticas no tienen descuentos; el aviso no lo indica")
     return "Sin dato", "el aviso no lo indica"
 
 
@@ -683,7 +724,8 @@ def context_html(ctx: dict | None) -> str:
 
     label = rb.get("label") or ""
     kinds = employer_kinds(rb)
-    sector_chips = ([f'<button type="button" class="chip sector" data-set-filter="sector" data-value="{esc(label)}" title="Filtrar por {esc(label)}">{esc(label)}</button>'] if label
+    group = sector_group({"context": ctx})
+    sector_chips = ([f'<button type="button" class="chip sector" data-set-filter="sector" data-value="{esc(group)}" title="Filtrar por {esc(group)}">{esc(label)}</button>'] if label
                     else ['<span class="chip muted">Rubro sin identificar</span>'])
     sector_chips += [f'<button type="button" class="chip kind" data-set-filter="kind" data-value="{esc(k)}" title="Filtrar por {esc(k)}">{esc(k)}</button>' for k in kinds]
     sector = (f'<div class="ctx-row"><span class="ctx-k">Rubro</span><div class="ctx-v">{" ".join(sector_chips)} '
@@ -1070,6 +1112,15 @@ details.sec .track{margin-top:12px}
 .seen-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font-weight:600;cursor:pointer;user-select:none}
 .seen-btn:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep)}
 .seen-btn input{margin:0;width:16px;height:16px;accent-color:var(--accent)}
+.drop-btn:has(input:checked){border-color:var(--stop);background:var(--stop-bg);color:var(--stop-ink)}
+.card.is-drop .row{opacity:.4}.card.is-drop .t{text-decoration:line-through}
+.card.is-pick{box-shadow:inset 4px 0 0 var(--accent)}
+.pickbar{position:sticky;bottom:12px;z-index:5;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line-strong);box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.pickbar[hidden]{display:none}
+.pickbar button{min-height:40px;padding:0 14px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
+.pickbar button.ghost{background:transparent;color:var(--ink-2);border-color:var(--line-strong)}
+.pickbar button:disabled{opacity:.45;cursor:default}
+.pickbar .fine{flex-basis:100%;margin:0}
 .d-src{font-size:12px;color:var(--dim)}
 .facts{margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .facts>div{padding:12px 16px;background:var(--surface);border-right:1px solid var(--line);min-width:0}.facts>div:last-child{border-right:0}
@@ -1189,7 +1240,7 @@ JS = """
   var tot=document.getElementById('tot'),empty=document.getElementById('empty'),emptyState=document.getElementById('empty-state');
   var roleButtons=Array.prototype.slice.call(document.querySelectorAll('[data-role-filter]'));
   var role=track.dataset.initialFocus||'';
-  var chipSel={nivel:'',rubro:''},chipButtons=Array.prototype.slice.call(document.querySelectorAll('[data-chip]'));
+  var chipSel={nivel:''},chipButtons=Array.prototype.slice.call(document.querySelectorAll('[data-chip]'));
   if(role&&role!=='estado'&&!cards.some(function(c){return c.dataset.roles.split('|').indexOf(role)>=0;}))role='';
 
   // "Revisada": a per-browser convenience, never written back to the state files.
@@ -1203,6 +1254,45 @@ JS = """
     });
   });
   count();
+
+  // "Hacer CV" and "Descartar": kept in this browser until copied to the agent or the terminal.
+  var picks=get('pe_revision_pick',{}),drops=get('pe_revision_drop',{}),showDrop=false,bar=document.getElementById('pickbar');
+  function keysOf(m){return Object.keys(m).filter(function(k){return m[k]&&cardOf(k);});}
+  function cardOf(k){return cards.filter(function(c){return c.dataset.key===k;})[0];}
+  function refreshBar(){
+    if(!bar)return;
+    var p=keysOf(picks),d=keysOf(drops),show=document.getElementById('dr-show');
+    document.getElementById('pk-n').textContent=p.length;document.getElementById('dr-n').textContent=d.length;
+    document.getElementById('pk-copy').disabled=!p.length;document.getElementById('dr-copy').disabled=!d.length;
+    show.hidden=!d.length;show.textContent=showDrop?'Ocultar descartadas':'Ver descartadas';
+    bar.hidden=!p.length&&!d.length;
+  }
+  function wire(cls,map,key,after){
+    document.querySelectorAll('input.'+cls).forEach(function(cb){
+      var card=cb.closest('.card');cb.checked=!!map[cb.dataset.key];card.classList.toggle('is-'+cls,cb.checked);
+      cb.addEventListener('change',function(){
+        map[cb.dataset.key]=cb.checked;put(key,map);card.classList.toggle('is-'+cls,cb.checked);refreshBar();if(after)after();
+      });
+    });
+  }
+  wire('pick',picks,'pe_revision_pick');
+  wire('drop',drops,'pe_revision_drop',function(){apply();});
+  function copy(text,btn){
+    var ok=function(){var o=btn.textContent;btn.textContent='Copiado ✓';setTimeout(function(){btn.textContent=o;},1800);};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,function(){window.prompt('Copia esto:',text);});
+    else window.prompt('Copia esto:',text);
+  }
+  if(bar){
+    document.getElementById('pk-copy').addEventListener('click',function(){
+      var lines=keysOf(picks).map(cardOf).map(function(c,i){return (i+1)+'. '+c.dataset.label+(c.dataset.url?' — '+c.dataset.url:'');});
+      copy('Haz /apply para estas ofertas, una por una. Muéstrame cada CV y carta antes de pasar a la siguiente, y no postules ni envíes nada:\\n'+lines.join('\\n'),this);
+    });
+    document.getElementById('dr-copy').addEventListener('click',function(){
+      copy('python tools/pe_pipeline.py descartar '+keysOf(drops).map(function(k){return '"'+k+'"';}).join(' '),this);
+    });
+    document.getElementById('dr-show').addEventListener('click',function(){showDrop=!showDrop;refreshBar();apply();});
+  }
+  refreshBar();
 
   // Filters and order.
   var q=document.getElementById('q'),fa=document.getElementById('fa'),fr=document.getElementById('fr'),
@@ -1228,12 +1318,11 @@ JS = """
         &&modOk(c)&&(!fr.value||c.dataset.fresh===fr.value)
         &&(!fz.value||c.dataset.zones.split('|').indexOf(fz.value)>=0)
         &&(!fdistrict.value||c.dataset.districts.split('|').indexOf(fdistrict.value)>=0)
-        &&(!fsector.value||c.dataset.sector===fsector.value)
+        &&(!fsector.value||c.dataset.rubros.split('|').indexOf(fsector.value)>=0)
         &&(!fkind.value||c.dataset.kinds.split('|').indexOf(fkind.value)>=0)
         &&(!role||c.dataset.roles.split('|').indexOf(role)>=0)
         &&(!chipSel.nivel||c.dataset.nivel===chipSel.nivel)
-        &&(!chipSel.rubro||c.dataset.rubros.split('|').indexOf(chipSel.rubro)>=0)
-        &&closeOk(c.dataset.close)&&doneOk(c)
+        &&closeOk(c.dataset.close)&&doneOk(c)&&(showDrop||!c.classList.contains('is-drop'))
         &&(fx.checked||c.dataset.excl!=='1');
       c.hidden=!ok;if(ok)shown++;
     });
@@ -1278,7 +1367,7 @@ JS = """
   document.querySelectorAll('[data-goto]').forEach(function(b){
     b.addEventListener('click',function(){
       var card=cards.filter(function(c){return c.dataset.key===b.dataset.goto;})[0];if(!card)return;
-      if(card.hidden){controls.forEach(function(el){el.value='';});mods.forEach(function(m){m.checked=true;});role='';chipSel={nivel:'',rubro:''};apply();}
+      if(card.hidden){controls.forEach(function(el){el.value='';});mods.forEach(function(m){m.checked=true;});role='';chipSel={nivel:''};showDrop=true;apply();}
       var d=card.querySelector('details');if(d)d.open=true;
       card.scrollIntoView({behavior:'smooth',block:'start'});
     });
@@ -1510,8 +1599,8 @@ def card_html(r: dict, classes: dict[str, str]) -> str:
         f'data-label="{esc((r.get("title") or "") + " · " + (r.get("company") or ""))}" '
         f'data-action="{esc(r["action"])}" data-modality="{esc(r.get("modality"))}" data-fresh="{esc(level)}" '
         f'data-close="{esc(closes["bucket"])}" data-zones="{esc(zones)}" data-districts="{esc(districts)}" '
-        f'data-sector="{esc(rb.get("label"))}" data-kinds="{esc(kinds)}" data-roles="{esc("|".join(role_tags(r)))}" data-text="{esc(text)}" '
-        f'data-nivel="{esc(level_txt)}" data-rubros="{esc(rubros)}" '
+        f'data-sector="{esc(rb.get("label"))}" data-kinds="{esc(kinds)}" data-roles="{esc("|".join(card_roles(r)))}" data-text="{esc(text)}" '
+        f'data-nivel="{esc(level_txt)}" data-rubros="{esc(rubros)}" data-url="{esc(r.get("url") or "")}" '
         f'data-excl="{"1" if r.get("abroad_excluded") else ""}" {sort_attrs}>'
         f'<details class="rowd"><summary class="row">'
         f'<span class="sc" title="Encaje: puntaje de /rank sobre 100 · {esc(r.get("rank_verdict"))}"><b>{esc(score if score is not None else "—")}</b>'
@@ -1556,12 +1645,12 @@ def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: 
     modality = (r.get("modality") or "no declarado").capitalize()
     facts = [
         ("Encaje", f"{score} de 100" if score is not None else "—", r.get("rank_verdict") or ""),
-        ("Frescura", f"{level.capitalize()}" + (f" · {floor}{age} días" if isinstance(age, int) else ""),
+        ("Frescura de vacante", f"{level.capitalize()}" + (f" · {floor}{age} días" if isinstance(age, int) else ""),
          (f"riesgo de ghost job {risk}" if risk in ("medio", "alto") else f"publicada el {posted}" if posted else "")),
         ("Cierre", closes["label"] if closes["bucket"] != "sin" else "Sin fecha",
          "fecha que escribe la oferta" if closes["bucket"] != "sin" else "el aviso no la indica"),
         ("Lugar", places, f"modalidad: {modality.lower()}"),
-        ("Rubro", rb.get("label") or "Sin identificar", " · ".join(employer_kinds(rb))),
+        ("Rubro", rb.get("label") or (g if (g := sector_group(r)) != "Otros" else "Sin identificar"), " · ".join(employer_kinds(rb))),
         ("Sueldo", *(r.get("sueldo") or ("Sin dato", "el aviso no lo indica"))),
     ]
     dl = "".join(f'<div><dt>{esc(k)}</dt><dd class="v">{esc(v)}</dd>' + (f'<dd class="n">{esc(n)}</dd>' if n else "") + "</div>"
@@ -1578,7 +1667,11 @@ def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: 
     actions += word_html(r)
     actions += cv_html(r).replace('<div class="cvrow">', "").replace("</div>", "")
     actions += (f'<label class="seen-btn"><input type="checkbox" class="done" data-key="{esc(r["key"])}"> '
-                f'<span>Revisada</span></label>')
+                f'<span>Revisada</span></label>'
+                f'<label class="seen-btn pick-btn" title="La juntas con otras y copias el pedido para el agente"><input type="checkbox" class="pick" data-key="{esc(r["key"])}"> '
+                f'<span>Hacer CV</span></label>'
+                f'<label class="seen-btn drop-btn" title="La ocultas aquí; el comando de abajo la saca de la lista para siempre"><input type="checkbox" class="drop" data-key="{esc(r["key"])}"> '
+                f'<span>Descartar</span></label>')
     portal = (r.get("portal") or "").replace("-search", "").replace("-", " ")
     src = " · ".join(x for x in (f"publicada en {portal}" if portal else "", f"vista el {_ddmm(r.get('first_seen'))}"
                                  if _ddmm(r.get("first_seen")) else "") if x)
@@ -1666,11 +1759,15 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
         zone_set.append("Remoto")
     zone_opts = "".join(f'<option value="{esc(z)}">{esc(z)}</option>' for z in zone_set)
     district_set = sorted({d for r in main_rows for d in ((((r.get("context") or {}).get("lugar") or {}).get("districts")) or [])})
-    sector_set = sorted({label for r in main_rows
-                         if (label := (((r.get("context") or {}).get("rubro") or {}).get("label")))})
+    # Rubro lives under "Más filtros", in fixed groups: a long row of choices up front only confuses.
+    by_group = Counter(sector_group(r) for r in main_rows)
+    finance = sum(by_group[g] for g in FINANCE_GROUPS)
+    sector_set = ((["Finanzas"] if finance else [])
+                  + [g for g, _ in sorted(by_group.items(), key=lambda kv: (kv[0] == "Otros", -kv[1], kv[0]))])
     kind_set = sorted({k for r in main_rows for k in employer_kinds(((r.get("context") or {}).get("rubro") or {}))})
     district_opts = "".join(f'<option value="{esc(d)}">{esc(d)}</option>' for d in district_set)
-    sector_opts = "".join(f'<option value="{esc(s)}">{esc(s)}</option>' for s in sector_set)
+    sector_opts = "".join(f'<option value="{esc(s)}">{esc("Finanzas (todo: banca, seguros, AFP, fondos…)" if s == "Finanzas" else s)}'
+                          f' ({finance if s == "Finanzas" else by_group[s]})</option>' for s in sector_set)
     kind_opts = "".join(f'<option value="{esc(k)}">{esc(k)}</option>' for k in kind_set)
     mode_values = [m for m in ("presencial", "híbrido", "remoto") if m in modalities]
     if any(not r.get("modality") or r.get("modality") == "no declarado" for r in main_rows):
@@ -1678,7 +1775,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     mode_checks = "".join(f'<label class="chk"><input type="checkbox" class="fmod" value="{esc(m)}" checked> {esc(m.capitalize())}</label>'
                           for m in mode_values)
     by_action = Counter(r["action"] for r in main_rows)
-    by_role = Counter(tag for r in main_rows for tag in role_tags(r))
+    by_role = Counter(tag for r in main_rows for tag in card_roles(r))
     known_ids = {pe_frescura.posting_id({"id": e.get("id"), "url": e.get("url")})
                  for e in data["seen"].values() if isinstance(e, dict)}
     pending_servir = sum(1 for p in ((data.get("nuevas") or {}).get("nuevas") or [])
@@ -1695,17 +1792,12 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
     by_level = Counter(r.get("level") for r in main_rows)
     level_tips = {"práctica preprofesional": "Estudiantes: la primera práctica", "práctica profesional": "Egresados, hasta 12 meses después de egresar"}
     chip_levels = chip_row("nivel", "Nivel", [(lv, lv.capitalize(), by_level[lv], level_tips.get(lv, "")) for lv in LEVELS if by_level[lv]])
-    by_group = Counter(sector_group(r) for r in main_rows)
-    finance = sum(by_group[g] for g in FINANCE_GROUPS)
-    chip_groups = chip_row("rubro", "Rubro", ([("Finanzas", "Finanzas (todo)", finance, " · ".join(sorted(FINANCE_GROUPS)))] if finance else [])
-                           + [(g, g, n, "") for g, n in sorted(by_group.items(), key=lambda kv: (kv[0] == "Otros", -kv[1], kv[0]))])
     role_buttons = ('<button type="button" data-role-filter="" aria-pressed="true">Todos'
                     f'<small>{len(main_rows)}</small></button>'
                     + "".join(f'<button type="button" data-role-filter="{key}" aria-pressed="false">{label}'
                               f'<small>{by_role[key]}</small></button>'
-                              for key, label in (("campo", "Trabajo de campo"), ("rrhh", "RR. HH."),
-                                                 ("practicas", "Prácticas"), ("estado", "Sector público"),
-                                                 ("otros", "Otros")) if by_role[key] or key == "estado"))
+                              for key, label in EMPLOYER_TYPES + [("campo", "Trabajo de campo"), ("rrhh", "RR. HH.")]
+                              if by_role[key] or key in ("privado", "estado")))
     state_empty = (f'<div class="empty" id="empty-state" hidden>Aún no hay ofertas del sector público evaluadas'
                    f' con estos filtros. <a href="#sec-nuevas" data-show-portal="talento-peru">'
                    f'Ver {pending_servir} {"nueva" if pending_servir == 1 else "nuevas"} de SERVIR sin evaluar</a>.</div>' if pending_servir else
@@ -1725,7 +1817,7 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
         f'<button type="button" class="colsort" data-sort="{k}" data-first="{first}" aria-sort="{"ascending" if k == "accion" else "none"}" '
         f'title="Ordenar por {esc(lbl.lower())}">{esc(lbl)}<span class="arr" aria-hidden="true"></span></button>'
         for lbl, k, first in (("Encaje", "encaje", "desc"), ("Oferta", "puesto", "asc"), ("Modalidad", "modalidad", "asc"),
-                              ("Cierre", "cierre", "asc"), ("Frescura", "frescura", "asc"), ("Acción", "accion", "asc")))
+                              ("Cierre", "cierre", "asc"), ("Frescura de vacante", "frescura", "asc"), ("Acción", "accion", "asc")))
     unranked = "".join(
         f'<li>{esc(r.get("posted_date") or "?")} · {link(r.get("url"), r.get("title"))} · {esc(r.get("company"))}'
         f' <span class="dim">({esc(r.get("modality"))} · {esc(r.get("level"))})</span></li>'
@@ -1810,7 +1902,6 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="listcol">
 <div class="role-filter" role="group" aria-label="Filtrar por tipo de puesto"><span>Tipo de puesto</span><div class="quick">{role_buttons}</div></div>
 {chip_levels}
-{chip_groups}
 {f'<p class="note"><a href="#sec-cerradas" data-open="sec-cerradas">Ver {len(closed_public)} {"convocatoria pública cerrada" if len(closed_public) == 1 else "convocatorias públicas cerradas"}</a></p>' if closed_public else ''}
 <div class="list-head"><h2 id="decidir">Para decidir ({len(main_rows)}) <span class="dim">· mostrando <span id="tot">{len(main_rows)}</span></span></h2>
 <div class="list-tools"><label>Orden <select id="so">{sort_opts}</select></label></div></div>
@@ -1818,7 +1909,13 @@ def _body(data: dict, today: date, title: str | None, classes: dict[str, str] | 
 <div class="track list" id="main" data-initial-focus="{esc(initial_focus)}" aria-label="Ofertas para decidir">{"".join(card_html(r, classes) for r in main_rows)}</div>
 <div class="empty" id="empty" hidden>Ninguna oferta con estos filtros.</div>
 {state_empty}
-<p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular · revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}.</p>
+<p class="note">Haz clic en una fila para ver por qué calza, sus brechas y cómo postular · revisadas <b class="count" id="cnt">0</b> de {len(main_rows)}. Dentro de cada una: <b>Hacer CV</b> la junta con otras para pedírselas al agente; <b>Descartar</b> la oculta.</p>
+<div class="pickbar" id="pickbar" hidden role="region" aria-label="Ofertas elegidas">
+<span><b id="pk-n">0</b> para CV</span><button type="button" id="pk-copy">Copiar pedido para el agente</button>
+<span><b id="dr-n">0</b> descartadas</span><button type="button" id="dr-copy">Copiar comando para guardarlas</button>
+<button type="button" id="dr-show" class="ghost">Ver descartadas</button>
+<span class="fine">El pedido se pega en Claude Code, agy o Codex abierto en tu perfil. El comando se pega en la terminal del perfil y saca esas ofertas de la lista para siempre.</span>
+</div>
 </div>
 </section>
 <nav class="more" aria-label="Más secciones">{more}</nav>

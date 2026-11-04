@@ -643,6 +643,39 @@ def cmd_actualizar(args) -> int:
     return 0 if ok else 1
 
 
+def cmd_descartar(args) -> int:
+    """Postings discarded on the review page ("Descartar" -> "Copiar comando"): status "skipped" in
+    seen_jobs.json, so they leave the page and later searches skip them. --deshacer restores them."""
+    try:
+        state = json.loads(args.state.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"no puedo leer {args.state}: {exc}", file=sys.stderr)
+        return 1
+    seen = state.get("seen") or {}
+    changed, missing = [], []
+    for key in args.claves:
+        e = seen.get(key)
+        if not isinstance(e, dict):
+            missing.append(key)
+        elif args.deshacer and "discarded_by_user" in e:
+            e["status"] = e.pop("status_before_discard", None) or "ranked"
+            e.pop("discarded_by_user")
+            changed.append(e.get("title") or key)
+        elif not args.deshacer and "discarded_by_user" not in e:
+            e["status_before_discard"], e["status"] = e.get("status"), "skipped"
+            e["discarded_by_user"] = date.today().isoformat()
+            changed.append(e.get("title") or key)
+    if changed:
+        args.state.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    verb = "vuelven a la lista" if args.deshacer else "descartadas"
+    print(f"{len(changed)} {verb}" + "".join(f"\n  · {t}" for t in changed))
+    for key in missing:
+        print(f"  no está en {args.state}: {key}", file=sys.stderr)
+    if changed:
+        print("Para ver la página sin ellas: python tools/pe_pipeline.py actualizar")
+    return 1 if missing and not changed else 0
+
+
 def estado(path: Path, as_json: bool, limit: int = 10) -> int:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -914,7 +947,13 @@ def main(argv=None) -> int:
     pg.add_argument("--ia", choices=sorted(IA), help="also run /rank with this agent CLI")
     pg.add_argument("--titulo", help="name in the page heading")
     pg.add_argument("--quitar", action="store_true", help="remove the daily task")
+    ds = sub.add_parser("descartar", help="drop postings discarded on the review page (seen_jobs.json status skipped)")
+    ds.add_argument("claves", nargs="+", help="posting keys, as the page's 'Copiar comando' writes them")
+    ds.add_argument("--deshacer", action="store_true", help="put them back as they were")
+    ds.add_argument("--state", type=Path, default=STATE)
     args = ap.parse_args(argv)
+    if args.cmd == "descartar":
+        return cmd_descartar(args)
     if args.cmd == "diario":
         return cmd_diario(args)
     if args.cmd == "programar":

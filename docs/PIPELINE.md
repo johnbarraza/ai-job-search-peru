@@ -62,6 +62,20 @@ La página ofrece atajos por tipo de puesto (Trabajo de campo, RR. HH., Práctic
 
 Lee `reports/revision-ofertas.json` y muestra lo que cierra en 7 días (con cómo postular y si ya hay CV a medida) y las primeras ofertas para postular. `--json` imprime lo mismo como datos, junto con las que aún no tienen CV.
 
+### `descartar`: sacar de la lista lo que no te interesa
+
+En la página, dentro de cada oferta, **Descartar** la oculta en ese navegador. El botón **Copiar comando** de la barra de abajo arma la línea para guardarlo en el perfil:
+
+```powershell
+python tools/pe_pipeline.py descartar "clave-1" "clave-2"
+python tools/pe_pipeline.py actualizar            # la página ya sin ellas
+python tools/pe_pipeline.py descartar "clave-1" --deshacer
+```
+
+Pone esas ofertas como `skipped` en `job_scraper/seen_jobs.json` (guarda el estado anterior para `--deshacer`), así que tampoco vuelven en búsquedas futuras. **Hacer CV**, en cambio, no toca archivos: **Copiar pedido para el agente** copia un texto con esas ofertas para pegarlo en Claude Code, `agy` o Codex abierto en el perfil, que corre `/apply` una por una y te muestra cada CV antes de seguir.
+
+"Revisada", "Hacer CV" y "Descartar" se guardan solo en ese navegador (no en archivos): si abres la página en otro navegador o borras sus datos, no aparecen.
+
 ### `diario` y `programar`: la búsqueda todos los días, sola
 
 `diario` corre `buscar --detalle --registrar`, luego (opcional) `/rank` con un agente y al final `actualizar`. Cada línea queda también en `reports/busqueda/diario.log`, con fecha DD/MM/AAAA y hora de Perú en 12 horas:

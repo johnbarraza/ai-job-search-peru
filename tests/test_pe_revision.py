@@ -155,8 +155,8 @@ class Rendering(unittest.TestCase):
         self.assertIn('data-role-filter="estado" aria-pressed="false">Sector público<small>0</small>', page)
         self.assertIn('data-show-portal="talento-peru">Ver 1 nueva de SERVIR sin evaluar', page)
         self.assertIn('data-initial-focus="campo"', page)
-        self.assertIn('data-roles="campo"', page)
-        self.assertIn('data-roles="rrhh"', page)
+        self.assertIn('data-roles="privado|campo"', page)
+        self.assertIn('data-roles="privado|rrhh"', page)
 
     def build(self, seen, fresh=(), research=None):
         tmp = Path(tempfile.mkdtemp())
@@ -291,7 +291,7 @@ class ContextAndSorting(unittest.TestCase):
              "consultas": 3, "fallidas": 0, "resultados": 80, "fecha": "2026-10-24"}]}
         page = pr.render(data, date(2026, 10, 24), None)
         for term in ('Última búsqueda: <strong>24/10/2026 · Prácticas.pe', 'id="f-district"',
-                     'value="Santiago de Surco"', 'id="f-sector"', 'value="Consultora de Recursos Humanos"',
+                     'value="Santiago de Surco"', 'id="f-sector"', 'value="RR. HH. y selección"',
                      'id="f-kind"', 'value="Recluta para un cliente"', 'class="fmod" value="híbrido"',
                      'data-districts="Santiago de Surco"', 'data-sector="Consultora de Recursos Humanos"',
                      'data-kinds="Recluta para un cliente"'):
@@ -658,6 +658,24 @@ class EarlierUnrankedStayListed(unittest.TestCase):
         self.assertNotIn("Ya evaluada", html)
 
 
+class EmployerTypeAndDiscard(unittest.TestCase):
+    def test_employer_type_row(self):
+        self.assertEqual(pr.employer_type(ranked(company="Interbank")), "privado")
+        self.assertEqual(pr.employer_type(ranked(portal="talento-peru-search")), "estado")
+        self.assertEqual(pr.employer_type(ranked(company="Innovations for Poverty Action")), "investigacion")
+        self.assertEqual(pr.employer_type(ranked(company="Acme", title="Research Assistant", level="asistente")), "investigacion")
+        self.assertEqual(pr.employer_type(ranked(company="Confidencial")), "otros")
+        self.assertEqual(pr.employer_type(ranked(company="Banco Mundial")), "otros")
+
+    def test_page_offers_pick_and_discard_and_hides_the_sector_row(self):
+        data = pr.collect({"seen": {"a": ranked()}}, [], Path(tempfile.mkdtemp()))
+        page = pr.render(data, date(2026, 11, 4), None)
+        for term in ('class="pick" data-key="a"', 'class="drop" data-key="a"', 'id="pk-copy"', 'id="dr-copy"',
+                     'data-role-filter="privado"', 'Frescura de vacante'):
+            self.assertIn(term, page)
+        self.assertNotIn('data-chip="rubro"', page)
+
+
 class SectorGroupsAndPayFloor(unittest.TestCase):
     def group(self, label, company="", portal=""):
         return pr.sector_group({"company": company, "portal": portal, "context": {"rubro": {"label": label}}})
@@ -675,7 +693,8 @@ class SectorGroupsAndPayFloor(unittest.TestCase):
 
     def test_internship_without_stated_pay_shows_the_legal_floor_as_approximate(self):
         value, note = pr.salary_of({"title": "Practicante de Riesgos", "level": "práctica preprofesional"}, {})
-        self.assertEqual(value, f"desde S/ {pr.fmt_es(pr.pe_sueldo.PARAMS['rmv'])}")
+        self.assertEqual(value, f"desde S/ {pr.fmt_es(pr.pe_sueldo.PARAMS['rmv'])} (neto)")
+        self.assertEqual(pr.salary_of({"title": "Practicante", "level": "práctica profesional"}, {})[0], "S/ 1.354–1.428 (neto)")
         self.assertTrue(note.startswith("mínimo legal"))
         self.assertEqual(pr.salary_of({"title": "Analista de Riesgos", "level": "analista"}, {})[0], "Sin dato")
         self.assertEqual(pr.salary_of({"title": "Practicante", "salary": "S/ 1,500"}, {})[1], "según el aviso")

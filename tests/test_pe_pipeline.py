@@ -459,5 +459,23 @@ class Diario(unittest.TestCase):
         self.assertIn("8:00 a. m. hora de Perú (UTC-5) = 13:00 UTC", out)
 
 
+
+class Descartar(unittest.TestCase):
+    def test_discard_then_undo_restores_the_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "seen.json"
+            state.write_text(json.dumps({"seen": {"k": {"title": "Practicante", "status": "ranked"}}}), encoding="utf-8")
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(pp.main(["descartar", "k", "--state", str(state)]), 0)
+                e = json.loads(state.read_text(encoding="utf-8"))["seen"]["k"]
+                self.assertEqual((e["status"], e["status_before_discard"]), ("skipped", "ranked"))
+                self.assertEqual(pp.main(["descartar", "k", "--deshacer", "--state", str(state)]), 0)
+            e = json.loads(state.read_text(encoding="utf-8"))["seen"]["k"]
+            self.assertEqual(e["status"], "ranked")
+            self.assertNotIn("discarded_by_user", e)
+            with mock.patch("sys.stdout", new=io.StringIO()), mock.patch("sys.stderr", new=io.StringIO()):
+                self.assertEqual(pp.main(["descartar", "no-existe", "--state", str(state)]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
