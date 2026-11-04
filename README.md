@@ -55,7 +55,7 @@ Necesitas **Git** instalado ([cómo](#qué-necesitas)) y, si vas a usar IA, **Cl
 | `instalar_full.sh` 5/5 | `.venv`, librerías y buscadores de portales (`instalar_basico.sh`) | Nada | 1 a 3 min |
 | `empezar.sh` 1/5 | Crea tu perfil en `perfiles/<tu-nombre>/` | Tu nombre | Segundos |
 | `empezar.sh` 2/5 | Si tienes Claude Code, lo abre con `/setup`: tu CV, tus datos, qué buscas | Responder a Claude; al terminar, `/exit` y el script sigue | 10 a 20 min |
-| `empezar.sh` 3/5 | Arma tus búsquedas (`consultas.json`) | Puestos separados por comas y ciudad | Segundos |
+| `empezar.sh` 3/5 | Arma tus búsquedas (`consultas.json`) y completa tu nivel, modalidad y lugar en el perfil | Con opciones numeradas: sector (privado, público, investigación, otros), modalidad, dónde (Lima, otra ciudad, también fuera), tu etapa (estudiante, egresado, ya trabajo); y los puestos que buscas | 1 min |
 | `empezar.sh` 4/5 | Primera búsqueda en todos los portales y la página de revisión, que se abre sola | Nada | 5 a 15 min |
 | `empezar.sh` 5/5 | Programa la búsqueda diaria; opcional: que Claude evalúe las nuevas cada día | La hora (Enter = no programar) | Segundos |
 
@@ -229,8 +229,13 @@ Sigue el README (formas 1 y 2) y docs/INSTALAR.md, en este orden, y avísame ant
    Desde ahí, todo lo de la búsqueda se corre dentro de perfiles/<nombre>/.
 4. Arma mi perfil: si eres Claude Code, corre /setup --user <nombre>; si no, sigue .claude/commands/setup.md.
    Pídeme mi CV y lo que busco; no inventes datos.
-5. Pregúntame qué puestos busco y en qué ciudad, y crea mis búsquedas en el perfil:
-   python tools/pe_pipeline.py consultas --q "<puestos separados por comas>" --ciudad "<ciudad>"
+5. Pregúntame, con opciones numeradas: sector (privado, público, investigación, otros; puedo elegir varios),
+   modalidad (remoto, presencial, híbrido, cualquiera), dónde (Lima, otra ciudad del Perú, también fuera solo
+   remoto, también fuera mudándome), mi etapa (estudiante, egresado, ya trabajo) y qué puestos busco.
+   Con eso crea mis búsquedas en el perfil:
+   python tools/pe_pipeline.py consultas --q "<puestos>" --sector "<privado,publico,investigacion,otros>"
+     --modalidad "<remoto|presencial|hibrido|cualquiera>" --lugar "<lima|peru|afuera-remoto|afuera>"
+     --ciudad "<ciudad>" --etapa "<estudiante|egresado|profesional>"
 6. Corre la primera búsqueda en el perfil: python tools/pe_pipeline.py diario
    Tarda de 5 a 15 minutos. Si un portal falla, sigue con los demás y dime cuál.
 7. Evalúa las ofertas nuevas: /rank en Claude Code, o siguiendo .claude/commands/rank.md. Después corre

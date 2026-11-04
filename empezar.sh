@@ -10,6 +10,21 @@ paso() { STEP=$((STEP + 1)) NAME="$1"; echo; echo "[$STEP/5] $NAME"; }
 pausa() { if [ -t 0 ] && [ -z "${NO_PAUSA:-}" ]; then echo; read -r -p "Presiona Enter para cerrar esta ventana..." _ || true; fi; }
 trap 'echo; echo "ERROR en el paso $STEP/5 ($NAME). Lee el mensaje de arriba, corrige y vuelve a correr: bash empezar.sh" >&2; pausa' ERR
 ask() { local answer=""; read -r -p "$1" answer || true; printf '%s' "$answer"; }
+# elegir "question" "default keys" "default label" "key|text"...: numbered options; prints the chosen keys.
+elegir() {
+  local question="$1" default="$2" label="$3" answer="" out="" n i=1
+  shift 3
+  local keys=()
+  echo "  $question" >&2
+  for option in "$@"; do keys+=("${option%%|*}"); echo "    $i) ${option#*|}" >&2; i=$((i + 1)); done
+  read -r -p "  Número(s), separados por comas (Enter = $label): " answer || true
+  for n in $(printf '%s' "$answer" | tr ',;' '  '); do
+    case "$n" in *[!0-9]*) continue ;; esac
+    if [ "$n" -ge 1 ] && [ "$n" -le "${#keys[@]}" ]; then out="$out,${keys[$((n - 1))]}"; fi
+  done
+  printf '%s' "${out#,}"
+  [ -n "$out" ] || printf '%s' "$default"
+}
 
 py="$ROOT/.venv/Scripts/python.exe"; [ -x "$py" ] || py="$ROOT/.venv/bin/python"
 if [ ! -x "$py" ]; then echo "Falta instalar: corre primero  bash instalar_full.sh" >&2; pausa; exit 1; fi
@@ -60,9 +75,27 @@ cd "$PERFIL"
 if ! run tools/pe_pipeline.py consultas --es-ejemplo; then
   echo "  ya está: reports/busqueda/consultas.json"
 else
+  sector=$(elegir "¿En qué sector quieres trabajar? (puedes elegir varios)" "privado,publico,investigacion,otros" "todos" \
+    "privado|Sector privado (empresas, bancos, consultoras...)" \
+    "publico|Sector público (SERVIR: ministerios, BCRP, SUNAT, SBS...)" \
+    "investigacion|Investigación (research: universidades, centros de estudio)" \
+    "otros|Otros (ONG, organismos internacionales)")
+  modo=$(elegir "¿Qué modalidad?" "cualquiera" "cualquiera" \
+    "remoto|Remoto" "presencial|Presencial" "hibrido|Híbrido" "cualquiera|Cualquiera")
+  lugar=$(elegir "¿Dónde?" "lima" "Lima" \
+    "lima|Lima, Perú" "peru|Otra ciudad del Perú" \
+    "afuera-remoto|Perú y también fuera, solo remoto" "afuera|Perú y también fuera, dispuesto a mudarme o viajar")
+  lugar=${lugar%%,*}
+  city="Lima"
+  [ "$lugar" = "peru" ] && city=$(ask "  ¿Qué ciudad? ") && city=${city:-Lima}
+  etapa=$(elegir "¿En qué etapa estás?" "estudiante" "estudiante" \
+    "estudiante|Estudiante universitario: busco prácticas preprofesionales" \
+    "egresado|Egresado o bachiller: prácticas profesionales, trainee, analista junior" \
+    "profesional|Ya trabajo: analista, asociado, junior")
+  etapa=${etapa%%,*}
   q=$(ask "  ¿Qué puestos buscas? Separa con comas (ej. practicante finanzas, analista de riesgos): ")
-  city=$(ask "  ¿Ciudad? (Enter = Lima): ")
-  run tools/pe_pipeline.py consultas --q "$q" --ciudad "${city:-Lima}"
+  run tools/pe_pipeline.py consultas --q "$q" --ciudad "$city" --sector "$sector" --modalidad "$modo" \
+    --lugar "$lugar" --etapa "$etapa"
 fi
 
 paso "primera búsqueda (5 a 15 minutos; puedes dejarla corriendo)"
