@@ -1126,6 +1126,11 @@ details.sec .track{margin-top:12px}
 .seen-btn:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep)}
 .seen-btn input{margin:0;width:16px;height:16px;accent-color:var(--accent)}
 .drop-btn:has(input:checked){border-color:var(--stop);background:var(--stop-bg);color:var(--stop-ink)}
+.drop-btn input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.drop-btn:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.drop-btn svg{flex:none}.drop-btn .on{display:none}
+.drop-btn:has(input:checked) .on{display:inline}.drop-btn:has(input:checked) .off{display:none}
+.drop-btn:hover{border-color:var(--stop);color:var(--stop)}
 .card.is-drop .row{opacity:.4}.card.is-drop .t{text-decoration:line-through}
 .card.is-pick{box-shadow:inset 4px 0 0 var(--accent)}
 .pickbar{position:sticky;bottom:12px;z-index:5;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line-strong);box-shadow:0 6px 24px rgba(0,0,0,.25)}
@@ -1652,6 +1657,9 @@ ICON_CHECK = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
               '<path d="M3 8.5l3 3 7-7"/></svg>')
 ICON_ALERT = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">'
               '<path d="M8 3v6M8 12.5v.5"/></svg>')
+ICON_TRASH = ('<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" '
+              'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+              '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v5M9.2 6.5v5"/></svg>')
 ICON_OUT = ('<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
             '<path d="M6 3h7v7M13 3L5 11M3 6v7h7"/></svg>')
 
@@ -1702,8 +1710,8 @@ def detail_html(r: dict, fresh: dict | None, level: str, closes: dict, applied: 
                 f'<span>Revisada</span></label>'
                 f'<label class="seen-btn pick-btn" title="La juntas con otras y copias el pedido para el agente"><input type="checkbox" class="pick" data-key="{esc(r["key"])}"> '
                 f'<span>Hacer CV</span></label>'
-                f'<label class="seen-btn drop-btn" title="La ocultas aquí; el comando de abajo la saca de la lista para siempre"><input type="checkbox" class="drop" data-key="{esc(r["key"])}"> '
-                f'<span>Descartar</span></label>')
+                f'<label class="seen-btn drop-btn" title="La ocultas aquí; el comando de abajo la saca de la lista para siempre"><input type="checkbox" class="drop" data-key="{esc(r["key"])}">'
+                f'{ICON_TRASH}<span class="off">Descartar</span><span class="on">Descartada · deshacer</span></label>')
     portal = (r.get("portal") or "").replace("-search", "").replace("-", " ")
     src = " · ".join(x for x in (f"publicada en {portal}" if portal else "", f"vista el {_ddmm(r.get('first_seen'))}"
                                  if _ddmm(r.get("first_seen")) else "") if x)
