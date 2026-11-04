@@ -10,7 +10,7 @@
 
 # AI Job Search · Edición Perú
 
-Herramientas para buscar ofertas en portales peruanos, revisar requisitos, preparar un CV por puesto y llevar el estado de cada postulación. Es una adaptación para Perú de [AI Job Search](https://github.com/ai-job-search-dev/ai-job-search), iniciado por Mads Lorentzen.
+Herramientas para buscar ofertas en portales peruanos, revisar requisitos, preparar un CV por puesto y llevar el estado de cada postulación. Es una adaptación para Perú de [AI Job Search](https://github.com/ai-job-search-dev/ai-job-search), iniciado por Mads Lorentzen (Dinamarca).
 
 **La búsqueda puede funciona sin IA (limitado).** Buscar, cruzar portales, fechar, armar la página de revisión y programar la búsqueda diaria no necesitan ningún modelo. Un agente (Claude Code, Codex o Antigravity) es opcional y suma tres cosas: evaluar el encaje con tu perfil (`/rank`), adaptar el CV y la carta (`/apply`) y preparar entrevistas (`/interview`).
 
